@@ -155,6 +155,10 @@ export type RiderAvailabilityPayload = {
   updatedAt: string;
 };
 
+export type RiderPushRegistrationPayload = {
+  ok: true;
+};
+
 function apiUrl(path: string) {
   if (!config.apiBaseUrl) throw new RiderApiError("api-base-url-required");
   return `${config.apiBaseUrl.replace(/\/$/, "")}${path}`;
@@ -318,6 +322,23 @@ export async function updateRiderAvailability(
   },
 ) {
   return riderApi<RiderAvailabilityPayload>("/api/mobile/riders/availability", {
+    body: JSON.stringify(input),
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    method: "POST",
+  });
+}
+
+export async function registerRiderPushToken(
+  accessToken: string,
+  input: {
+    appVersion?: string;
+    deviceId?: string;
+    expoPushToken: string;
+    platform?: string;
+    riderId?: string;
+  },
+) {
+  return riderApi<RiderPushRegistrationPayload>("/api/mobile/riders/push/register", {
     body: JSON.stringify(input),
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     method: "POST",

@@ -6,7 +6,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View }
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AuthGate } from "@/components/auth-gate";
-import { LogoMark, PrimaryButton, RiderHeader, RiderScreen } from "@/components/rider-ui";
+import { PrimaryButton, RiderHeader, RiderScreen } from "@/components/rider-ui";
 import { RiderAssets } from "@/constants/rider-assets";
 import { RiderColors, RiderFonts } from "@/constants/rider-theme";
 import { useRiderAuth } from "@/context/rider-auth";
@@ -86,10 +86,6 @@ function ProfileContent() {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl onRefresh={refresh} refreshing={refreshing} tintColor={RiderColors.lime} />}
           showsVerticalScrollIndicator={false}>
-          <View style={styles.brandRow}>
-            <LogoMark />
-          </View>
-
           <View style={styles.profileCard}>
             <View style={styles.avatarWrap}>
               <Image source={RiderAssets.illustrations.riderStanding} style={styles.avatar} contentFit="contain" />
@@ -142,7 +138,6 @@ function MenuRow({ icon: Icon, title, subtitle }: { icon: LucideIcon; title: str
         <Text style={styles.menuTitle}>{title}</Text>
         <Text style={styles.menuSubtitle}>{subtitle}</Text>
       </View>
-      <Text style={styles.chevron}>{">"}</Text>
     </View>
   );
 }
@@ -156,14 +151,10 @@ const styles = StyleSheet.create({
     paddingBottom: 112,
     paddingHorizontal: 18,
   },
-  brandRow: {
-    alignItems: "center",
-    paddingVertical: 8,
-  },
   profileCard: {
     alignItems: "center",
     backgroundColor: RiderColors.card,
-    borderRadius: 28,
+    borderRadius: 8,
     flexDirection: "row",
     gap: 16,
     padding: 18,
@@ -209,7 +200,7 @@ const styles = StyleSheet.create({
   walletCard: {
     alignItems: "center",
     backgroundColor: RiderColors.blue900,
-    borderRadius: 28,
+    borderRadius: 8,
     flexDirection: "row",
     gap: 12,
     justifyContent: "center",
@@ -254,7 +245,7 @@ const styles = StyleSheet.create({
   },
   menu: {
     backgroundColor: RiderColors.card,
-    borderRadius: 24,
+    borderRadius: 8,
     overflow: "hidden",
   },
   menuRow: {
@@ -269,7 +260,7 @@ const styles = StyleSheet.create({
   menuIcon: {
     alignItems: "center",
     backgroundColor: RiderColors.soft,
-    borderRadius: 18,
+    borderRadius: 8,
     height: 36,
     justifyContent: "center",
     marginRight: 12,
@@ -291,12 +282,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
-  },
-  chevron: {
-    color: RiderColors.muted,
-    fontFamily: RiderFonts.black,
-    fontSize: 22,
-    fontWeight: "900",
   },
   logoutText: {
     color: RiderColors.white,

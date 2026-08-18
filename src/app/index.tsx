@@ -699,11 +699,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
     borderColor: "rgba(255,255,255,0.16)",
-    borderRadius: 22,
+    borderRadius: 8,
     borderWidth: 1,
     flexDirection: "row",
     gap: 12,
-    minHeight: 82,
+    minHeight: 78,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
   availabilityIcon: {
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.16)",
-    borderRadius: 19,
+    borderRadius: 8,
     height: 38,
     justifyContent: "center",
     width: 38,
@@ -740,10 +740,10 @@ const styles = StyleSheet.create({
   availablePanel: {
     alignItems: "center",
     backgroundColor: RiderColors.card,
-    borderRadius: 22,
+    borderRadius: 8,
     elevation: 10,
     flexDirection: "row",
-    minHeight: 116,
+    minHeight: 108,
     overflow: "hidden",
     paddingLeft: 18,
     shadowColor: "#000",
@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
   countBadge: {
     alignItems: "center",
     backgroundColor: RiderColors.lime,
-    borderBottomLeftRadius: 18,
+    borderBottomLeftRadius: 8,
     height: 48,
     justifyContent: "center",
     position: "absolute",
@@ -798,8 +798,10 @@ const styles = StyleSheet.create({
   },
   jobCard: {
     backgroundColor: RiderColors.card,
-    borderRadius: 22,
-    elevation: 12,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 8,
+    borderWidth: 1,
+    elevation: 8,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.22,
@@ -833,7 +835,7 @@ const styles = StyleSheet.create({
   feeBadge: {
     alignItems: "flex-end",
     backgroundColor: RiderColors.blue950,
-    borderRadius: 18,
+    borderRadius: 8,
     minWidth: 104,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -857,7 +859,7 @@ const styles = StyleSheet.create({
     height: 190,
     marginHorizontal: 16,
     overflow: "hidden",
-    borderRadius: 18,
+    borderRadius: 8,
   },
   restaurant: {
     color: RiderColors.muted,
@@ -876,7 +878,7 @@ const styles = StyleSheet.create({
   mapBadge: {
     alignItems: "center",
     backgroundColor: RiderColors.lime,
-    borderRadius: 17,
+    borderRadius: 8,
     flexDirection: "row",
     gap: 6,
     minHeight: 34,
@@ -970,18 +972,20 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   activeWrap: {
-    gap: 16,
+    gap: 12,
   },
   mapHero: {
     backgroundColor: RiderColors.soft,
-    borderRadius: 28,
+    borderRadius: 8,
     minHeight: 300,
     overflow: "hidden",
   },
   locationBubble: {
     alignItems: "center",
     backgroundColor: RiderColors.blue950,
-    borderRadius: 22,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 8,
+    borderWidth: 1,
     bottom: 22,
     justifyContent: "center",
     left: 26,
@@ -1004,7 +1008,7 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     backgroundColor: RiderColors.card,
-    borderRadius: 28,
+    borderRadius: 8,
     gap: 18,
     padding: 18,
   },
@@ -1033,7 +1037,7 @@ const styles = StyleSheet.create({
   readyPill: {
     alignItems: "center",
     backgroundColor: RiderColors.lime,
-    borderRadius: 20,
+    borderRadius: 8,
     height: 40,
     justifyContent: "center",
     minWidth: 70,
@@ -1074,7 +1078,7 @@ const styles = StyleSheet.create({
   },
   infoBlock: {
     backgroundColor: RiderColors.soft,
-    borderRadius: 18,
+    borderRadius: 8,
     padding: 14,
   },
   infoLabel: {
@@ -1101,7 +1105,7 @@ const styles = StyleSheet.create({
   },
   pickupNumber: {
     backgroundColor: RiderColors.blue900,
-    borderRadius: 20,
+    borderRadius: 8,
     padding: 16,
   },
   pickupNumberLabel: {

@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
 import AppTabs from '@/components/app-tabs';
+import { RiderNotifications } from '@/components/rider-notifications';
 import { RiderAuthProvider } from '@/context/rider-auth';
 
 void SplashScreen.preventAutoHideAsync().catch(() => null);
@@ -37,6 +38,7 @@ export default function TabLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <RiderAuthProvider>
+        <RiderNotifications />
         <AppTabs />
       </RiderAuthProvider>
     </ThemeProvider>

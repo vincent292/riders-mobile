@@ -73,11 +73,12 @@ function HistoryContent() {
           refreshControl={<RefreshControl onRefresh={refresh} refreshing={refreshing} tintColor={RiderColors.lime} />}
           showsVerticalScrollIndicator={false}>
           <View style={styles.summary}>
-            <View>
+            <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Hoy</Text>
               <Text style={styles.summaryValue}>{todayOrders.length} carreras</Text>
             </View>
-            <View>
+            <View style={styles.summaryDivider} />
+            <View style={[styles.summaryItem, styles.summaryItemRight]}>
               <Text style={styles.summaryLabel}>Ganancias del dia</Text>
               <Text style={styles.summaryMoney}>{moneyBob(todayEarnings)}</Text>
             </View>
@@ -127,10 +128,22 @@ const styles = StyleSheet.create({
   },
   summary: {
     backgroundColor: RiderColors.card,
-    borderRadius: 24,
+    borderRadius: 8,
     flexDirection: "row",
-    justifyContent: "space-between",
+    minHeight: 92,
     padding: 18,
+  },
+  summaryItem: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  summaryItemRight: {
+    alignItems: "flex-end",
+  },
+  summaryDivider: {
+    backgroundColor: RiderColors.line,
+    marginHorizontal: 14,
+    width: 1,
   },
   summaryLabel: {
     color: RiderColors.muted,
@@ -175,7 +188,7 @@ const styles = StyleSheet.create({
   },
   list: {
     backgroundColor: RiderColors.card,
-    borderRadius: 24,
+    borderRadius: 8,
     overflow: "hidden",
   },
   row: {

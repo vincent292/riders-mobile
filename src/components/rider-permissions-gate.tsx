@@ -103,7 +103,7 @@ async function requestNotificationPermission(): Promise<PermissionState> {
     const Notifications = await import("expo-notifications");
 
     if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("rider-dispatches", {
+      await Notifications.setNotificationChannelAsync("rider-dispatch", {
         importance: Notifications.AndroidImportance.MAX,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         name: "Carreras asignadas",
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   heroPanel: {
     aspectRatio: 2.37,
     borderColor: "rgba(199,240,0,0.16)",
-    borderRadius: 22,
+    borderRadius: 8,
     borderWidth: 1,
     overflow: "hidden",
     width: "100%",
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: RiderColors.card,
-    borderRadius: 22,
+    borderRadius: 8,
     elevation: 10,
     overflow: "hidden",
     shadowColor: "#000",
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   permissionIcon: {
     alignItems: "center",
     backgroundColor: RiderColors.soft,
-    borderRadius: 19,
+    borderRadius: 8,
     height: 38,
     justifyContent: "center",
     width: 38,

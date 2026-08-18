@@ -3,6 +3,7 @@ module.exports = ({ config }) => {
     process.env.GOOGLE_MAPS_ANDROID_API_KEY ||
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
     "";
+  const googleServicesFile = process.env.GOOGLE_SERVICES_JSON || "";
   const plugins = [...(config.plugins ?? [])];
 
   if (!plugins.some((plugin) => Array.isArray(plugin) ? plugin[0] === "expo-location" : plugin === "expo-location")) {
@@ -19,7 +20,7 @@ module.exports = ({ config }) => {
       "expo-notifications",
       {
         color: "#C7F000",
-        defaultChannel: "rider-dispatches",
+        defaultChannel: "rider-dispatch",
         icon: "./assets/expo.icon/Generated/monochrome-symbol.png",
       },
     ]);
@@ -39,6 +40,7 @@ module.exports = ({ config }) => {
     android: {
       ...config.android,
       package: "shop.yopido.riders",
+      ...(googleServicesFile ? { googleServicesFile } : {}),
     },
     plugins,
   };

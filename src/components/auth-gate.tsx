@@ -1,5 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Image } from "expo-image";
+import { AtSign, BadgeCheck, Bike, Eye, EyeOff, LockKeyhole, LogIn, UserRound, type LucideIcon } from "lucide-react-native";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -100,15 +101,15 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
 
               {mode !== "google-link" ? (
                 <>
-                  <Field autoCapitalize="none" keyboardType="email-address" label="Correo" onChangeText={setEmail} value={email} />
-                  <Field label="Contrasena" onChangeText={setPassword} secureTextEntry value={password} />
+                  <Field autoCapitalize="none" icon={AtSign} keyboardType="email-address" label="Correo" onChangeText={setEmail} value={email} />
+                  <Field icon={LockKeyhole} label="Contrasena" onChangeText={setPassword} secureTextEntry value={password} />
                 </>
               ) : null}
 
               {mode !== "login" ? (
                 <>
-                  <Field autoCapitalize="characters" label="Carnet / documento" onChangeText={setDocumentNumber} value={documentNumber} />
-                  <Field autoCapitalize="characters" label="Placa" onChangeText={setPlateNumber} value={plateNumber} />
+                  <Field autoCapitalize="characters" icon={BadgeCheck} label="Carnet / documento" onChangeText={setDocumentNumber} value={documentNumber} />
+                  <Field autoCapitalize="characters" icon={Bike} label="Placa" onChangeText={setPlateNumber} value={plateNumber} />
                 </>
               ) : null}
 
@@ -118,15 +119,21 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
                 {pending ? (
                   <ActivityIndicator color={mode === "google-link" ? RiderColors.white : RiderColors.ink} />
                 ) : (
-                  <Text style={mode === "google-link" ? styles.buttonWhite : styles.buttonDark}>
-                    {mode === "register" ? "Crear y entrar" : mode === "google-link" ? "Vincular rider" : "Entrar"}
-                  </Text>
+                  <View style={styles.buttonContent}>
+                    <LogIn color={mode === "google-link" ? RiderColors.white : RiderColors.ink} size={18} strokeWidth={2.8} />
+                    <Text style={mode === "google-link" ? styles.buttonWhite : styles.buttonDark}>
+                      {mode === "register" ? "Crear y entrar" : mode === "google-link" ? "Vincular rider" : "Entrar"}
+                    </Text>
+                  </View>
                 )}
               </PrimaryButton>
 
               {mode !== "google-link" ? (
                 <PrimaryButton onPress={google} tone="dark">
-                  <Text style={styles.buttonWhite}>Continuar con Google</Text>
+                  <View style={styles.buttonContent}>
+                    <UserRound color={RiderColors.white} size={18} strokeWidth={2.6} />
+                    <Text style={styles.buttonWhite}>Continuar con Google</Text>
+                  </View>
                 </PrimaryButton>
               ) : null}
 
@@ -146,9 +153,11 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
 }
 
 function Field({
+  icon: Icon,
   label,
   ...props
 }: {
+  icon: LucideIcon;
   label: string;
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   keyboardType?: "default" | "email-address";
@@ -156,14 +165,30 @@ function Field({
   secureTextEntry?: boolean;
   value: string;
 }) {
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const isPassword = Boolean(props.secureTextEntry);
+
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
-        {...props}
-        placeholderTextColor="#9AA4B2"
-        style={styles.input}
-      />
+      <View style={styles.inputShell}>
+        <Icon color={RiderColors.blue900} size={19} strokeWidth={2.3} />
+        <TextInput
+          {...props}
+          secureTextEntry={isPassword && !passwordVisible}
+          placeholderTextColor="#9AA4B2"
+          style={styles.input}
+        />
+        {isPassword ? (
+          <Pressable hitSlop={10} onPress={() => setPasswordVisible((visible) => !visible)}>
+            {passwordVisible ? (
+              <EyeOff color={RiderColors.muted} size={20} strokeWidth={2.2} />
+            ) : (
+              <Eye color={RiderColors.muted} size={20} strokeWidth={2.2} />
+            )}
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -176,21 +201,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   authContent: {
-    gap: 12,
+    gap: 14,
     justifyContent: "center",
     minHeight: "100%",
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   heroPanel: {
-    backgroundColor: RiderColors.card,
-    borderRadius: 20,
-    elevation: 10,
-    height: 136,
+    borderColor: "rgba(199,240,0,0.22)",
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 148,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 18,
     alignSelf: "center",
     width: "100%",
   },
@@ -200,10 +222,12 @@ const styles = StyleSheet.create({
   },
   panel: {
     backgroundColor: RiderColors.card,
-    borderRadius: 22,
-    elevation: 12,
-    gap: 12,
-    padding: 16,
+    borderRadius: 8,
+    borderTopColor: RiderColors.lime,
+    borderTopWidth: 4,
+    elevation: 8,
+    gap: 14,
+    padding: 18,
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -244,15 +268,23 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   input: {
-    borderColor: RiderColors.line,
-    borderRadius: 16,
-    borderWidth: 1,
-    backgroundColor: RiderColors.soft,
     color: RiderColors.ink,
+    flex: 1,
     fontFamily: RiderFonts.extraBold,
     fontSize: 15,
     fontWeight: "800",
-    minHeight: 48,
+    minHeight: 50,
+    paddingVertical: 0,
+  },
+  inputShell: {
+    alignItems: "center",
+    backgroundColor: RiderColors.soft,
+    borderColor: RiderColors.line,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 52,
     paddingHorizontal: 14,
   },
   error: {
@@ -273,6 +305,11 @@ const styles = StyleSheet.create({
     fontFamily: RiderFonts.black,
     fontSize: 15,
     fontWeight: "900",
+  },
+  buttonContent: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 9,
   },
   modeRow: {
     alignItems: "center",

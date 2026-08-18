@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Clock3, MapPinned, UserRound, type LucideIcon } from 'lucide-react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { RiderColors, RiderFonts } from '@/constants/rider-theme';
 import { useRiderAuth } from '@/context/rider-auth';
@@ -21,22 +22,26 @@ export default function AppTabs() {
         tabBarActiveTintColor: RiderColors.lime,
         tabBarInactiveTintColor: RiderColors.white,
         tabBarStyle: {
-          backgroundColor: RiderColors.blue950,
+          backgroundColor: '#08111D',
           borderTopColor: 'rgba(255,255,255,0.08)',
           borderTopWidth: 1,
           display: hideTabs ? 'none' : 'flex',
-          height: 76,
-          paddingBottom: 10,
-          paddingTop: 8,
+          height: 72,
+          paddingBottom: 8,
+          paddingTop: 7,
         },
         tabBarLabelStyle: {
           fontFamily: RiderFonts.extraBold,
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '800',
         },
         tabBarIcon: ({ color, focused }) => {
           const Icon = tabIcons[route.name] ?? MapPinned;
-          return <Icon color={color} size={focused ? 24 : 22} strokeWidth={focused ? 2.9 : 2.2} />;
+          return (
+            <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
+              <Icon color={focused ? RiderColors.ink : color} size={21} strokeWidth={focused ? 2.8 : 2.2} />
+            </View>
+          );
         },
       })}>
       <Tabs.Screen name="index" options={{ title: 'Mapa' }} />
@@ -46,3 +51,16 @@ export default function AppTabs() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabIcon: {
+    alignItems: 'center',
+    borderRadius: 8,
+    height: 30,
+    justifyContent: 'center',
+    width: 42,
+  },
+  tabIconActive: {
+    backgroundColor: RiderColors.lime,
+  },
+});

@@ -42,17 +42,21 @@ export function RiderHeader({
 }) {
   return (
     <View style={styles.header}>
-      <View>
-        <Text style={styles.headerTitle}>{title}</Text>
-        <View style={styles.statusRow}>
-          <View style={styles.onlineDot} />
-          <Text style={styles.statusText}>{subtitle}</Text>
+      <View style={styles.headerIdentity}>
+        <View style={styles.headerMark}>
+          <Image source={RiderAssets.icons.symbolLight} style={styles.headerMarkImage} contentFit="contain" />
+        </View>
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerTitle}>{title}</Text>
+          <View style={styles.statusRow}>
+            <View style={styles.onlineDot} />
+            <Text numberOfLines={1} style={styles.statusText}>{subtitle}</Text>
+          </View>
         </View>
       </View>
       {action ?? (
         <View style={styles.iconButton}>
           <Bell color={RiderColors.white} size={21} strokeWidth={2.5} />
-          <View style={styles.alertDot} />
         </View>
       )}
     </View>
@@ -154,7 +158,7 @@ const styles = StyleSheet.create({
   loadingScene: {
     aspectRatio: 2.37,
     borderColor: 'rgba(199,240,0,0.16)',
-    borderRadius: 18,
+    borderRadius: 8,
     borderWidth: 1,
     maxWidth: 360,
     overflow: 'hidden',
@@ -192,17 +196,41 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 12,
+    minHeight: 76,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerIdentity: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 11,
+  },
+  headerMark: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  headerMarkImage: {
+    height: 29,
+    width: 29,
+  },
+  headerCopy: {
+    flex: 1,
+  },
   headerTitle: {
     color: RiderColors.white,
     fontFamily: RiderFonts.black,
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: '900',
   },
   statusRow: {
@@ -226,19 +254,12 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 8,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  alertDot: {
-    position: 'absolute',
-    top: 9,
-    right: 9,
-    width: 8,
-    height: 8,
-    borderRadius: 8,
-    backgroundColor: RiderColors.red,
   },
   logo: {
     width: 188,
@@ -272,7 +293,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 52,
-    borderRadius: 26,
+    borderRadius: 8,
     backgroundColor: RiderColors.lime,
     alignItems: 'center',
     justifyContent: 'center',
@@ -299,7 +320,7 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     backgroundColor: RiderColors.card,
-    borderRadius: 22,
+    borderRadius: 8,
     gap: 10,
     overflow: 'hidden',
     padding: 18,
