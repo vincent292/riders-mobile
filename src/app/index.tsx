@@ -14,17 +14,27 @@ import { RiderColors, RiderFonts } from "@/constants/rider-theme";
 import { useRiderAuth } from "@/context/rider-auth";
 import { distanceKm, estimateEtaMinutes, formatDistance, googleDirectionsUrl, moneyBob, type Coordinates } from "@/lib/geo";
 import {
+  acceptRiderOffer,
   acceptRiderOrder,
+  listRiderOffers,
   listRiderOrders,
+  rejectRiderOffer,
   RiderApiError,
   riderErrorMessage,
   updateRiderAvailability,
   updateRiderLocation,
   updateRiderOrderStatus,
+  type MobileRiderOffer,
   type MobileRiderOrder,
 } from "@/lib/rider-api";
 
-const demoOrderId = "demo-rider-order";
+type RideCardItem = {
+  directOffer: boolean;
+  expiresAt?: string | null;
+  key: string;
+  offerId?: string;
+  order: MobileRiderOrder;
+};
 
 export default function HomeScreen() {
   return (
@@ -37,8 +47,8 @@ export default function HomeScreen() {
 function RiderHome() {
   const { refreshSession, session } = useRiderAuth();
   const [availableOrders, setAvailableOrders] = useState<MobileRiderOrder[]>([]);
+  const [riderOffers, setRiderOffers] = useState<MobileRiderOffer[]>([]);
   const [mineOrders, setMineOrders] = useState<MobileRiderOrder[]>([]);
-  const [demoDispatchStatus, setDemoDispatchStatus] = useState<"available" | "active" | "arrived" | null>(__DEV__ ? "available" : null);
   const [rejectedIds, setRejectedIds] = useState<string[]>([]);
   const [currentLocation, setCurrentLocation] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState("Ubicacion pendiente");
@@ -48,13 +58,27 @@ function RiderHome() {
   const [refreshing, setRefreshing] = useState(false);
   const token = session?.accessToken ?? "";
 
-  const demoOrder = useMemo(() => createDemoOrder(), []);
-  const demoActiveOrder = demoDispatchStatus === "active" || demoDispatchStatus === "arrived" ? withDemoDispatch(demoOrder, demoDispatchStatus) : null;
-  const activeOrder = mineOrders.find((order) => order.dispatch?.status === "active" || order.dispatch?.status === "arrived") ?? demoActiveOrder;
+  const activeOrder = mineOrders.find((order) => order.dispatch?.status === "active" || order.dispatch?.status === "arrived") ?? null;
   const activeOrderId = activeOrder?.id ?? "";
-  const visibleAvailable = availableOrders.filter((order) => !rejectedIds.includes(order.id));
-  const availableToShow = availableToday ? (visibleAvailable.length ? visibleAvailable : demoDispatchStatus === "available" ? [demoOrder] : []) : [];
-  const showingDemoOrder = availableToShow.some((order) => isDemoOrderId(order.id));
+  const visibleOffers = riderOffers.filter((offer) => !rejectedIds.includes(offer.id) && !rejectedIds.includes(offer.orderId));
+  const offeredOrderIds = new Set(visibleOffers.map((offer) => offer.orderId));
+  const visibleAvailable = availableOrders.filter((order) => !rejectedIds.includes(order.id) && !offeredOrderIds.has(order.id));
+  const ridesToShow: RideCardItem[] = availableToday
+    ? [
+        ...visibleOffers.map((offer) => ({
+          directOffer: true,
+          expiresAt: offer.expiresAt,
+          key: `offer-${offer.id}`,
+          offerId: offer.id,
+          order: offer.order,
+        })),
+        ...visibleAvailable.map((order) => ({
+          directOffer: false,
+          key: `order-${order.id}`,
+          order,
+        })),
+      ]
+    : [];
 
   useEffect(() => {
     setAvailableToday(Boolean(session?.availableToday));
@@ -86,14 +110,16 @@ function RiderHome() {
   const loadOrders = useCallback(async (options: { includeAvailable?: boolean } = {}) => {
     if (!token) return;
     const shouldLoadAvailable = options.includeAvailable ?? availableToday;
-    const [available, mine] = await runAuthorized((accessToken) =>
+    const [offers, available, mine] = await runAuthorized((accessToken) =>
       Promise.all([
+        shouldLoadAvailable ? listRiderOffers(accessToken) : Promise.resolve({ offers: [], updatedAt: new Date().toISOString() }),
         shouldLoadAvailable
           ? listRiderOrders(accessToken, "available")
           : Promise.resolve({ orders: [], scope: "available" as const, updatedAt: new Date().toISOString() }),
         listRiderOrders(accessToken, "mine"),
       ]),
     );
+    setRiderOffers(offers.offers);
     setAvailableOrders(available.orders);
     setMineOrders(mine.orders);
   }, [availableToday, runAuthorized, token]);
@@ -159,11 +185,6 @@ function RiderHome() {
           if (now - lastSentAt < 6000) return;
           lastSentAt = now;
 
-          if (isDemoOrderId(activeOrderId)) {
-            setLocationStatus("Demo local");
-            return;
-          }
-
           void runAuthorized((accessToken) =>
             updateRiderLocation(accessToken, activeOrderId, {
               ...nextLocation,
@@ -192,10 +213,10 @@ function RiderHome() {
     void loadOrders().catch((loadError) => setError(riderErrorMessage(loadError)));
     const interval = setInterval(() => {
       void loadOrders().catch(() => null);
-    }, 15000);
+    }, availableToday && !activeOrderId ? 5000 : 15000);
 
     return () => clearInterval(interval);
-  }, [loadOrders, token]);
+  }, [activeOrderId, availableToday, loadOrders, token]);
 
   const setAvailability = useCallback(
     async (nextAvailable: boolean) => {
@@ -248,7 +269,10 @@ function RiderHome() {
         );
         setAvailableToday(result.available);
         setRejectedIds([]);
-        if (!result.available) setAvailableOrders([]);
+        if (!result.available) {
+          setAvailableOrders([]);
+          setRiderOffers([]);
+        }
         setLocationStatus(result.available ? "Activo para recibir" : "Inactivo hoy");
         await refreshSession().catch(() => null);
         await loadOrders({ includeAvailable: result.available }).catch(() => null);
@@ -274,21 +298,40 @@ function RiderHome() {
     }
   }, [loadOrders]);
 
-  const acceptOrder = useCallback(
-    async (order: MobileRiderOrder) => {
+  const acceptRide = useCallback(
+    async (ride: RideCardItem) => {
       if (!token) return;
       setError("");
-      if (isDemoOrderId(order.id)) {
-        setDemoDispatchStatus("active");
-        return;
-      }
 
       try {
-        const result = await runAuthorized((accessToken) => acceptRiderOrder(accessToken, order.id));
+        const result = await runAuthorized((accessToken) =>
+          ride.offerId ? acceptRiderOffer(accessToken, ride.offerId) : acceptRiderOrder(accessToken, ride.order.id),
+        );
         setMineOrders((orders) => [result.order, ...orders.filter((item) => item.id !== result.order.id)]);
         setAvailableOrders((orders) => orders.filter((item) => item.id !== result.order.id));
+        setRiderOffers((offers) => offers.filter((item) => item.orderId !== result.order.id && item.id !== ride.offerId));
       } catch (acceptError) {
         setError(riderErrorMessage(acceptError));
+        await loadOrders().catch(() => null);
+      }
+    },
+    [loadOrders, runAuthorized, token],
+  );
+
+  const rejectRide = useCallback(
+    async (ride: RideCardItem) => {
+      if (!token) return;
+      setError("");
+      setRejectedIds((ids) => [...ids, ride.offerId ?? ride.order.id, ride.order.id]);
+
+      if (!ride.offerId) return;
+
+      try {
+        await runAuthorized((accessToken) => rejectRiderOffer(accessToken, ride.offerId!));
+        setRiderOffers((offers) => offers.filter((item) => item.id !== ride.offerId));
+        await loadOrders().catch(() => null);
+      } catch (rejectError) {
+        setError(riderErrorMessage(rejectError));
         await loadOrders().catch(() => null);
       }
     },
@@ -299,10 +342,6 @@ function RiderHome() {
     async (order: MobileRiderOrder, status: "arrived" | "delivered") => {
       if (!token) return;
       setError("");
-      if (isDemoOrderId(order.id)) {
-        setDemoDispatchStatus(status === "delivered" ? null : status);
-        return;
-      }
 
       try {
         const result = await runAuthorized((accessToken) => updateRiderOrderStatus(accessToken, order.id, status));
@@ -347,39 +386,34 @@ function RiderHome() {
             <>
               <View style={styles.availablePanel}>
                 <View style={styles.availableCopy}>
-                  <Text style={styles.availableEyebrow}>{showingDemoOrder ? "Vista demo" : availableToday ? "Turno activo" : "Turno inactivo"}</Text>
+                  <Text style={styles.availableEyebrow}>{visibleOffers.length ? "Oferta directa" : availableToday ? "Turno activo" : "Turno inactivo"}</Text>
                   <Text style={styles.availableTitle}>
-                    {availableToday ? (availableToShow.length ? "Carreras esperando rider" : "Esperando nuevas carreras") : "No recibiras carreras"}
+                    {availableToday ? (ridesToShow.length ? "Carreras esperando rider" : "Esperando nuevas carreras") : "No recibiras carreras"}
                   </Text>
                   <Text style={styles.availableText}>
                     {availableToday
-                      ? showingDemoOrder
-                        ? "Pedido local para revisar el diseno"
-                        : `${availableToShow.length} solicitudes disponibles ahora`
+                      ? visibleOffers.length
+                        ? `${visibleOffers.length} oferta${visibleOffers.length === 1 ? "" : "s"} enviada${visibleOffers.length === 1 ? "" : "s"} para ti`
+                        : `${ridesToShow.length} solicitudes disponibles ahora`
                       : "Activa tu turno cuando estes listo para repartir"}
                   </Text>
                 </View>
                 <Image source={RiderAssets.illustrations.helmet} style={styles.availableImage} contentFit="contain" />
                 <View style={styles.countBadge}>
-                  <Text style={styles.countText}>{availableToShow.length}</Text>
+                  <Text style={styles.countText}>{ridesToShow.length}</Text>
                 </View>
               </View>
 
-              {availableToShow.length ? (
-                availableToShow.map((order) => (
+              {ridesToShow.length ? (
+                ridesToShow.map((ride) => (
                   <OrderCard
                     currentLocation={currentLocation}
-                    key={order.id}
-                    onAccept={() => acceptOrder(order)}
-                    onReject={() => {
-                      if (isDemoOrderId(order.id)) {
-                        setDemoDispatchStatus(null);
-                        return;
-                      }
-
-                      setRejectedIds((ids) => [...ids, order.id]);
-                    }}
-                    order={order}
+                    directOffer={ride.directOffer}
+                    expiresAt={ride.expiresAt}
+                    key={ride.key}
+                    onAccept={() => acceptRide(ride)}
+                    onReject={() => rejectRide(ride)}
+                    order={ride.order}
                   />
                 ))
               ) : (
@@ -442,13 +476,17 @@ function AvailabilityCard({
 
 function OrderCard({
   currentLocation,
+  directOffer,
+  expiresAt,
   onAccept,
   onReject,
   order,
 }: {
   currentLocation: Coordinates | null;
+  directOffer?: boolean;
+  expiresAt?: string | null;
   onAccept: () => Promise<void>;
-  onReject: () => void;
+  onReject: () => Promise<void> | void;
   order: MobileRiderOrder;
 }) {
   const [pan] = useState(() => new Animated.Value(0));
@@ -461,7 +499,7 @@ function OrderCard({
         onPanResponderMove: Animated.event([null, { dx: pan }], { useNativeDriver: false }),
         onPanResponderRelease: (_, gesture) => {
           if (gesture.dx > 92) void onAccept();
-          if (gesture.dx < -92) onReject();
+          if (gesture.dx < -92) void onReject();
           Animated.spring(pan, { toValue: 0, useNativeDriver: true }).start();
         },
       }),
@@ -472,7 +510,7 @@ function OrderCard({
     <Animated.View {...panResponder.panHandlers} style={[styles.jobCard, { transform: [{ translateX: pan }] }]}>
       <View style={styles.jobHeader}>
         <View style={styles.jobHeaderCopy}>
-          <Text style={styles.jobEyebrow}>Nueva carrera</Text>
+          <Text style={styles.jobEyebrow}>{directOffer ? "Oferta para ti" : "Nueva carrera"}</Text>
           <Text style={styles.jobNumber}>Pedido {order.orderNumber}</Text>
           <Text style={styles.restaurant}>{order.restaurant.name}</Text>
         </View>
@@ -504,15 +542,15 @@ function OrderCard({
       <View style={styles.metricsRow}>
         <MetricPill label="Distancia" value={formatDistance(kilometers)} />
         <MetricPill label="Ganancia" value={moneyBob(order.deliveryFee)} tone="lime" />
-        <MetricPill label="Tiempo est." value={estimateEtaMinutes(kilometers)} />
+        <MetricPill label={directOffer ? "Expira" : "Tiempo est."} value={directOffer ? offerExpiryLabel(expiresAt) : estimateEtaMinutes(kilometers)} />
       </View>
       <View style={styles.swipeRow}>
-        <PrimaryButton onPress={onReject} tone="red">
+        <PrimaryButton onPress={() => void onReject()} tone="red">
           <X color={RiderColors.white} size={22} strokeWidth={3} />
         </PrimaryButton>
         <View style={styles.swipeCopy}>
-          <Text style={styles.swipeTitle}>Tomar esta carrera</Text>
-          <Text style={styles.swipeHint}>Desliza o toca aceptar</Text>
+          <Text style={styles.swipeTitle}>{directOffer ? "Responder oferta" : "Tomar esta carrera"}</Text>
+          <Text style={styles.swipeHint}>{directOffer ? "Acepta antes de que expire" : "Desliza o toca aceptar"}</Text>
         </View>
         <PrimaryButton onPress={() => void onAccept()}>
           <Check color={RiderColors.ink} size={23} strokeWidth={3} />
@@ -619,99 +657,6 @@ function TimelineStep({ active, label }: { active?: boolean; label: string }) {
   );
 }
 
-function isDemoOrderId(orderId: string) {
-  return orderId === demoOrderId;
-}
-
-function createDemoOrder(): MobileRiderOrder {
-  const now = new Date().toISOString();
-
-  return {
-    id: demoOrderId,
-    restaurant: {
-      id: "demo-restaurant",
-      name: "Pizzeria Italia",
-      slug: "pizzeria-italia",
-      city: "Calancha, Cochabamba",
-      logoUrl: "",
-      whatsapp: "70000000",
-    },
-    orderNumber: "D-1048",
-    customerName: "Cliente demo",
-    customerPhone: "70012345",
-    customerAddress: "Av. America y Pando",
-    deliveryAddressDetail: "Edificio Alameda, porteria principal",
-    deliveryLatitude: -17.3716,
-    deliveryLongitude: -66.1583,
-    deliveryMapsUrl: "",
-    requestedFulfillmentAt: null,
-    status: "ready",
-    paymentStatus: "paid",
-    paymentMethod: "qr",
-    subtotal: 92,
-    deliveryFee: 18,
-    discountTotal: 0,
-    total: 110,
-    notes: "Llamar al llegar. El cliente baja a recibir.",
-    acceptedAt: null,
-    preparingAt: now,
-    readyAt: now,
-    deliveredAt: null,
-    cancelledAt: null,
-    cancellationReason: "",
-    createdAt: now,
-    dispatch: {
-      id: "demo-dispatch",
-      riderId: null,
-      status: "active",
-      deliveryPhone: "70012345",
-      deliveryName: "Cliente demo",
-      openedAt: null,
-      arrivedAt: null,
-      deliveredAt: null,
-      expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
-      createdAt: now,
-      riderLocation: null,
-    },
-    items: [
-      {
-        id: "demo-item-1",
-        productId: "demo-product-1",
-        productName: "Pizza mediana especial",
-        unitPrice: 72,
-        quantity: 1,
-        subtotal: 72,
-        notes: "Sin cebolla",
-      },
-      {
-        id: "demo-item-2",
-        productId: "demo-product-2",
-        productName: "Refresco 2L",
-        unitPrice: 20,
-        quantity: 1,
-        subtotal: 20,
-        notes: "",
-      },
-    ],
-  };
-}
-
-function withDemoDispatch(order: MobileRiderOrder, status: "active" | "arrived"): MobileRiderOrder {
-  const now = new Date().toISOString();
-
-  return {
-    ...order,
-    acceptedAt: order.acceptedAt ?? now,
-    dispatch: {
-      ...(order.dispatch ?? createDemoOrder().dispatch!),
-      riderId: "demo-rider",
-      status,
-      openedAt: order.dispatch?.openedAt ?? now,
-      arrivedAt: status === "arrived" ? order.dispatch?.arrivedAt ?? now : order.dispatch?.arrivedAt ?? null,
-    },
-  };
-}
-
 function orderDestination(order: MobileRiderOrder): Coordinates | null {
   if (order.deliveryLatitude == null || order.deliveryLongitude == null) return null;
   return {
@@ -724,6 +669,12 @@ function openOrderMaps(order: MobileRiderOrder, currentLocation: Coordinates | n
   const destination = orderDestination(order);
   const url = order.deliveryMapsUrl || (destination ? googleDirectionsUrl(destination, currentLocation) : googleDirectionsUrl(order.customerAddress));
   void Linking.openURL(url);
+}
+
+function offerExpiryLabel(value?: string | null) {
+  if (!value) return "--";
+  const seconds = Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 1000));
+  return seconds > 0 ? `${seconds}s` : "Vencio";
 }
 
 const styles = StyleSheet.create({

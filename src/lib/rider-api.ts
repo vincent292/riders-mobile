@@ -132,6 +132,23 @@ export type RiderOrdersPayload = {
   updatedAt: string;
 };
 
+export type MobileRiderOffer = {
+  id: string;
+  orderId: string;
+  restaurantId: string;
+  restaurantRiderId: string;
+  status: "pending";
+  expiresAt: string;
+  createdAt: string;
+  distanceKm: number | null;
+  order: MobileRiderOrder;
+};
+
+export type RiderOffersPayload = {
+  offers: MobileRiderOffer[];
+  updatedAt: string;
+};
+
 export type RiderAvailabilityPayload = {
   activeRiders: MobileRider[];
   available: boolean;
@@ -220,7 +237,10 @@ export function riderErrorMessage(error: unknown) {
   if (code === "order-not-available") return "La carrera ya no esta disponible.";
   if (code === "order-already-assigned") return "La carrera ya fue asignada a otro rider.";
   if (code === "order-already-delivered") return "El pedido ya fue entregado.";
+  if (code === "order-already-offered") return "Esta carrera esta ofrecida a otro rider.";
   if (code === "rider-dispatch-not-found") return "No encontramos esta carrera activa en tu cuenta.";
+  if (code === "rider-offer-not-found") return "La oferta ya vencio o fue tomada.";
+  if (code === "rider-offers-failed") return "No pudimos leer tus ofertas nuevas.";
   if (code === "invalid-rider-location") return "No pudimos leer una ubicacion valida.";
   if (code === "rider-location-failed") return "No pudimos enviar tu ubicacion al cliente.";
   if (code === "unauthorized") return "Tu sesion vencio. Vuelve a ingresar.";
@@ -279,6 +299,13 @@ export async function listRiderOrders(accessToken: string, scope: "available" | 
   });
 }
 
+export async function listRiderOffers(accessToken: string) {
+  return riderApi<RiderOffersPayload>("/api/mobile/riders/offers", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    method: "GET",
+  });
+}
+
 export async function updateRiderAvailability(
   accessToken: string,
   input: {
@@ -300,6 +327,21 @@ export async function updateRiderAvailability(
 export async function acceptRiderOrder(accessToken: string, orderId: string) {
   return riderApi<{ order: MobileRiderOrder }>(`/api/mobile/riders/orders/${encodeURIComponent(orderId)}/accept`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    method: "POST",
+  });
+}
+
+export async function acceptRiderOffer(accessToken: string, offerId: string) {
+  return riderApi<{ order: MobileRiderOrder }>(`/api/mobile/riders/offers/${encodeURIComponent(offerId)}/accept`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    method: "POST",
+  });
+}
+
+export async function rejectRiderOffer(accessToken: string, offerId: string, reason = "rider-rejected") {
+  return riderApi<{ next: unknown; orderId: string }>(`/api/mobile/riders/offers/${encodeURIComponent(offerId)}/reject`, {
+    body: JSON.stringify({ reason }),
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     method: "POST",
   });
 }
