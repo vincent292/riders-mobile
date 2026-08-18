@@ -1,4 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { AppState, Platform } from "react-native";
 import * as AuthSession from "expo-auth-session";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
@@ -19,6 +20,32 @@ WebBrowser.maybeCompleteAuthSession();
 
 const sessionStorageKey = "riders-mobile-session-v1";
 
+const sessionStore = {
+  async deleteItem(key: string) {
+    if (Platform.OS === "web") {
+      globalThis.localStorage?.removeItem(key);
+      return;
+    }
+
+    await SecureStore.deleteItemAsync(key);
+  },
+  async getItem(key: string) {
+    if (Platform.OS === "web") {
+      return globalThis.localStorage?.getItem(key) ?? null;
+    }
+
+    return SecureStore.getItemAsync(key);
+  },
+  async setItem(key: string, value: string) {
+    if (Platform.OS === "web") {
+      globalThis.localStorage?.setItem(key, value);
+      return;
+    }
+
+    await SecureStore.setItemAsync(key, value);
+  },
+};
+
 type RiderAuthSession = {
   accessToken: string;
   refreshToken?: string;
@@ -30,6 +57,11 @@ type RiderAuthSession = {
   activeRiders: MobileRider[];
 };
 
+type PendingGoogleSession = {
+  accessToken: string;
+  refreshToken?: string;
+};
+
 type RiderAuthContextValue = {
   session: RiderAuthSession | null;
   loading: boolean;
@@ -38,7 +70,7 @@ type RiderAuthContextValue = {
   register: (input: { email: string; password: string; documentNumber: string; plateNumber: string }) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   linkPendingGoogleRider: (input: { documentNumber: string; plateNumber: string }) => Promise<void>;
-  refreshSession: () => Promise<void>;
+  refreshSession: () => Promise<RiderAuthSession | null>;
   signOut: () => Promise<void>;
 };
 
@@ -56,23 +88,25 @@ function normalizeSession(payload: RiderSessionPayload): RiderAuthSession {
 
 async function persistSession(session: RiderAuthSession | null) {
   if (!session) {
-    await SecureStore.deleteItemAsync(sessionStorageKey);
+    await sessionStore.deleteItem(sessionStorageKey);
     return;
   }
 
-  await SecureStore.setItemAsync(sessionStorageKey, JSON.stringify(session));
+  await sessionStore.setItem(sessionStorageKey, JSON.stringify(session));
 }
 
-async function refreshSupabaseTokens(session: RiderAuthSession) {
+async function refreshSupabaseTokens(session: RiderAuthSession, options: { force?: boolean } = {}) {
   if (!session.refreshToken) return session;
 
   const supabase = getSupabaseClient();
   if (!supabase) return session;
 
-  const { data, error } = await supabase.auth.setSession({
-    access_token: session.accessToken,
-    refresh_token: session.refreshToken,
-  });
+  const { data, error } = options.force
+    ? await supabase.auth.refreshSession({ refresh_token: session.refreshToken })
+    : await supabase.auth.setSession({
+        access_token: session.accessToken,
+        refresh_token: session.refreshToken,
+      });
 
   if (error || !data.session) return session;
 
@@ -98,7 +132,7 @@ async function fetchMeWithRefresh(session: RiderAuthSession) {
       throw error;
     }
 
-    const retrySession = await refreshSupabaseTokens(refreshed);
+    const retrySession = await refreshSupabaseTokens(refreshed, { force: true });
     if (retrySession.accessToken === refreshed.accessToken) {
       throw error;
     }
@@ -123,7 +157,7 @@ function parseStoredSession(value: string | null) {
 export function RiderAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<RiderAuthSession | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pendingGoogleToken, setPendingGoogleToken] = useState("");
+  const [pendingGoogleSession, setPendingGoogleSession] = useState<PendingGoogleSession | null>(null);
 
   const saveSession = useCallback(async (nextSession: RiderAuthSession | null) => {
     let sessionToSave = nextSession;
@@ -134,14 +168,15 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
 
     setSession(sessionToSave);
     await persistSession(sessionToSave);
+    return sessionToSave;
   }, []);
 
   const refreshSession = useCallback(async () => {
     const current = session;
-    if (!current) return;
+    if (!current) return null;
 
     const { me, session: refreshed } = await fetchMeWithRefresh(current);
-    await saveSession({
+    return saveSession({
       ...refreshed,
       user: me.user,
       riders: me.riders,
@@ -153,7 +188,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     async function restore() {
-      const stored = parseStoredSession(await SecureStore.getItemAsync(sessionStorageKey));
+      const stored = parseStoredSession(await sessionStore.getItem(sessionStorageKey));
       if (!mounted) return;
 
       if (!stored) {
@@ -186,6 +221,16 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
   }, [saveSession]);
 
   useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void refreshSession().catch(() => null);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [refreshSession]);
+
+  useEffect(() => {
     if (!session?.refreshToken) return;
 
     const interval = setInterval(() => {
@@ -198,7 +243,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (input: { email: string; password: string }) => {
       const payload = await loginRider(input);
-      setPendingGoogleToken("");
+      setPendingGoogleSession(null);
       await saveSession(normalizeSession(payload));
     },
     [saveSession],
@@ -207,7 +252,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(
     async (input: { email: string; password: string; documentNumber: string; plateNumber: string }) => {
       const payload = await registerRider(input);
-      setPendingGoogleToken("");
+      setPendingGoogleSession(null);
       await saveSession(normalizeSession(payload));
     },
     [saveSession],
@@ -253,7 +298,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const me = await fetchRiderMe(sessionData.session.access_token);
-      setPendingGoogleToken("");
+      setPendingGoogleSession(null);
       await saveSession({
         accessToken: sessionData.session.access_token,
         refreshToken: sessionData.session.refresh_token,
@@ -263,7 +308,10 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
       });
     } catch (error) {
       if (error instanceof RiderApiError && error.code === "rider-account-not-linked") {
-        setPendingGoogleToken(sessionData.session.access_token);
+        setPendingGoogleSession({
+          accessToken: sessionData.session.access_token,
+          refreshToken: sessionData.session.refresh_token,
+        });
         throw new RiderApiError("google-rider-link-required");
       }
       throw error;
@@ -272,24 +320,25 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
 
   const linkPendingGoogleRider = useCallback(
     async (input: { documentNumber: string; plateNumber: string }) => {
-      if (!pendingGoogleToken) throw new RiderApiError("google-rider-link-required");
-      const payload = await linkGoogleRider(pendingGoogleToken, input);
+      if (!pendingGoogleSession) throw new RiderApiError("google-rider-link-required");
+      const payload = await linkGoogleRider(pendingGoogleSession.accessToken, input);
       const activeRiders = payload.riders.filter((rider) => rider.status === "active");
       await saveSession({
-        accessToken: pendingGoogleToken,
+        accessToken: pendingGoogleSession.accessToken,
+        refreshToken: pendingGoogleSession.refreshToken,
         user: payload.user,
         riders: payload.riders,
         activeRiders,
       });
-      setPendingGoogleToken("");
+      setPendingGoogleSession(null);
     },
-    [pendingGoogleToken, saveSession],
+    [pendingGoogleSession, saveSession],
   );
 
   const signOut = useCallback(async () => {
     const supabase = getSupabaseClient();
     await supabase?.auth.signOut().catch(() => null);
-    setPendingGoogleToken("");
+    setPendingGoogleSession(null);
     await saveSession(null);
   }, [saveSession]);
 
@@ -297,7 +346,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       loading,
-      pendingGoogleLink: Boolean(pendingGoogleToken),
+      pendingGoogleLink: Boolean(pendingGoogleSession),
       signIn,
       register,
       signInWithGoogle,
@@ -305,7 +354,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
       refreshSession,
       signOut,
     }),
-    [linkPendingGoogleRider, loading, pendingGoogleToken, refreshSession, register, session, signIn, signInWithGoogle, signOut],
+    [linkPendingGoogleRider, loading, pendingGoogleSession, refreshSession, register, session, signIn, signInWithGoogle, signOut],
   );
 
   return <RiderAuthContext.Provider value={value}>{children}</RiderAuthContext.Provider>;

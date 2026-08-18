@@ -13,13 +13,20 @@ export function RiderScreen({ children }: { children: ReactNode }) {
 export function BrandedLoading({ message = 'Cargando tu ruta...' }: { message?: string }) {
   return (
     <View style={styles.loadingScreen}>
-      <Image source={RiderAssets.brand.logoLight} style={styles.loadingLogo} contentFit="contain" />
-      <Image source={RiderAssets.illustrations.riderMotorcycle} style={styles.loadingImage} contentFit="contain" />
-      <View style={styles.loadingBar}>
-        <View style={styles.loadingFill} />
+      <View style={styles.loadingBrand}>
+        <Image source={RiderAssets.brand.logoLight} style={styles.loadingLogo} contentFit="contain" />
+        <Text style={styles.loadingKicker}>Tu ruta, tus ganancias</Text>
       </View>
-      <ActivityIndicator color={RiderColors.lime} size="small" />
-      <Text style={styles.loadingText}>{message}</Text>
+      <View style={styles.loadingScene}>
+        <Image source={RiderAssets.reference.bannerDark} style={styles.loadingBanner} contentFit="cover" />
+      </View>
+      <View style={styles.loadingStatus}>
+        <View style={styles.loadingBar}>
+          <View style={styles.loadingFill} />
+        </View>
+        <ActivityIndicator color={RiderColors.lime} size="small" />
+        <Text style={styles.loadingText}>{message}</Text>
+      </View>
     </View>
   );
 }
@@ -125,26 +132,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: RiderColors.blue950,
     flex: 1,
-    gap: 12,
+    gap: 22,
     justifyContent: 'center',
     paddingHorizontal: 28,
   },
-  loadingLogo: {
-    height: 92,
-    width: 230,
+  loadingBrand: {
+    alignItems: 'center',
+    gap: 4,
   },
-  loadingImage: {
-    height: 190,
+  loadingLogo: {
+    height: 76,
+    width: 220,
+  },
+  loadingKicker: {
+    color: RiderColors.white,
+    fontFamily: RiderFonts.extraBold,
+    fontSize: 13,
+    fontWeight: '800',
+    opacity: 0.82,
+  },
+  loadingScene: {
+    aspectRatio: 2.37,
+    borderColor: 'rgba(199,240,0,0.16)',
+    borderRadius: 18,
+    borderWidth: 1,
+    maxWidth: 360,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  loadingBanner: {
+    height: '100%',
+    width: '100%',
+  },
+  loadingStatus: {
+    alignItems: 'center',
+    gap: 10,
+    maxWidth: 260,
     width: '100%',
   },
   loadingBar: {
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderRadius: 999,
     height: 5,
-    marginTop: 4,
-    maxWidth: 220,
     overflow: 'hidden',
-    width: '60%',
+    width: '78%',
   },
   loadingFill: {
     backgroundColor: RiderColors.lime,
@@ -268,13 +299,14 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     backgroundColor: RiderColors.card,
-    borderRadius: 24,
-    padding: 22,
+    borderRadius: 22,
+    gap: 10,
+    overflow: 'hidden',
+    padding: 18,
   },
   emptyImage: {
-    height: 136,
-    marginBottom: 10,
-    width: '82%',
+    height: 118,
+    width: '74%',
   },
   emptyTitle: {
     color: RiderColors.ink,

@@ -81,19 +81,22 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboard}>
           <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <View style={styles.logoWrap}>
-              <LogoMark />
-              <Text style={styles.slogan}>Tu ruta, tus ganancias</Text>
-              <Image source={RiderAssets.illustrations.riderMotorcycle} style={styles.heroImage} contentFit="contain" />
+            <View style={styles.heroPanel}>
+              <Image source={RiderAssets.reference.bannerLight} style={styles.heroBanner} contentFit="contain" />
             </View>
 
             <View style={styles.panel}>
-              <Text style={styles.title}>{title}</Text>
-              <Text style={styles.subtitle}>
-                {mode === "google-link"
-                  ? "Confirma tus datos de rider aprobado para activar esta cuenta."
-                  : "Usa la cuenta vinculada al rider aprobado en el SaaS."}
-              </Text>
+              <View style={styles.panelHeader}>
+                <View style={styles.titleRow}>
+                  <LogoMark compact tone="dark" />
+                  <Text style={styles.title}>{title}</Text>
+                </View>
+                <Text style={styles.subtitle}>
+                  {mode === "google-link"
+                    ? "Confirma tus datos de rider aprobado para activar esta cuenta."
+                    : "Usa la cuenta vinculada al rider aprobado en el SaaS."}
+                </Text>
+              </View>
 
               {mode !== "google-link" ? (
                 <>
@@ -173,37 +176,54 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   authContent: {
-    minHeight: "100%",
-    paddingHorizontal: 20,
-    paddingVertical: 24,
+    gap: 12,
     justifyContent: "center",
-    gap: 22,
+    minHeight: "100%",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  logoWrap: {
-    alignItems: "center",
-    gap: 6,
+  heroPanel: {
+    backgroundColor: RiderColors.card,
+    borderRadius: 20,
+    elevation: 10,
+    height: 136,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    alignSelf: "center",
+    width: "100%",
   },
-  slogan: {
-    color: RiderColors.white,
-    fontFamily: RiderFonts.bold,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  heroImage: {
-    height: 150,
-    marginTop: 4,
+  heroBanner: {
+    height: "100%",
     width: "100%",
   },
   panel: {
-    borderRadius: 28,
     backgroundColor: RiderColors.card,
-    padding: 20,
-    gap: 14,
+    borderRadius: 22,
+    elevation: 12,
+    gap: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    alignSelf: "center",
+    width: "100%",
+  },
+  panelHeader: {
+    gap: 5,
+    paddingBottom: 2,
+  },
+  titleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
   },
   title: {
     color: RiderColors.ink,
+    flex: 1,
     fontFamily: RiderFonts.black,
-    fontSize: 25,
+    fontSize: 21,
     fontWeight: "900",
   },
   subtitle: {
@@ -224,13 +244,15 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   input: {
-    minHeight: 52,
-    borderRadius: 18,
+    borderColor: RiderColors.line,
+    borderRadius: 16,
+    borderWidth: 1,
     backgroundColor: RiderColors.soft,
     color: RiderColors.ink,
     fontFamily: RiderFonts.extraBold,
     fontSize: 15,
     fontWeight: "800",
+    minHeight: 48,
     paddingHorizontal: 14,
   },
   error: {

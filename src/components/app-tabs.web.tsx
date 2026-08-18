@@ -3,13 +3,17 @@ import { Clock3, MapPinned, UserRound, type LucideIcon } from 'lucide-react-nati
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { RiderColors, RiderFonts } from '@/constants/rider-theme';
+import { useRiderAuth } from '@/context/rider-auth';
 
 export default function AppTabs() {
+  const { pendingGoogleLink, session } = useRiderAuth();
+  const hideTabs = !session || pendingGoogleLink;
+
   return (
     <Tabs>
       <TabSlot style={styles.slot} />
       <TabList asChild>
-        <View style={styles.tabListContainer}>
+        <View style={hideTabs ? styles.hiddenTabList : styles.tabListContainer}>
           <TabTrigger name="mapa" href="/" asChild>
             <TabButton icon={MapPinned}>Mapa</TabButton>
           </TabTrigger>
@@ -57,6 +61,9 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 18,
+  },
+  hiddenTabList: {
+    display: 'none',
   },
   tabButton: {
     flex: 1,

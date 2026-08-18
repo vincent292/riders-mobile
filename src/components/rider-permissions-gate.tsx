@@ -53,9 +53,16 @@ export function RiderPermissionsGate({ children }: { children: ReactNode }) {
     <RiderScreen>
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.content}>
-          <Image source={RiderAssets.illustrations.riderPhone} style={styles.hero} contentFit="contain" />
-          <Text style={styles.title}>Activa tus permisos</Text>
-          <Text style={styles.subtitle}>Yopido Riders necesita tu ubicacion para mostrar rutas y compartir avance durante una entrega.</Text>
+          <View style={styles.heroPanel}>
+            <Image source={RiderAssets.reference.bannerDark} style={styles.heroBanner} contentFit="cover" />
+          </View>
+          <View style={styles.copyBlock}>
+            <Image source={RiderAssets.illustrations.riderPhone} style={styles.phoneImage} contentFit="contain" />
+            <View style={styles.copyText}>
+              <Text style={styles.title}>Activa tus permisos</Text>
+              <Text style={styles.subtitle}>Yopido Riders necesita tu ubicacion para mostrar rutas y compartir avance durante una entrega.</Text>
+            </View>
+          </View>
 
           <View style={styles.card}>
             <PermissionRow
@@ -159,21 +166,40 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    gap: 16,
+    gap: 14,
     justifyContent: "center",
     padding: 22,
   },
-  hero: {
-    alignSelf: "center",
-    height: 210,
-    width: "92%",
+  heroPanel: {
+    aspectRatio: 2.37,
+    borderColor: "rgba(199,240,0,0.16)",
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: "hidden",
+    width: "100%",
+  },
+  heroBanner: {
+    height: "100%",
+    width: "100%",
+  },
+  copyBlock: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 14,
+    paddingHorizontal: 2,
+  },
+  phoneImage: {
+    height: 112,
+    width: 78,
+  },
+  copyText: {
+    flex: 1,
   },
   title: {
     color: RiderColors.white,
     fontFamily: RiderFonts.black,
-    fontSize: 28,
+    fontSize: 25,
     fontWeight: "900",
-    textAlign: "center",
   },
   subtitle: {
     color: RiderColors.white,
@@ -181,13 +207,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 21,
+    marginTop: 5,
     opacity: 0.84,
-    textAlign: "center",
   },
   card: {
     backgroundColor: RiderColors.card,
-    borderRadius: 24,
+    borderRadius: 22,
+    elevation: 10,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
   },
   permissionRow: {
     alignItems: "center",

@@ -11,7 +11,7 @@ import { RiderAssets } from "@/constants/rider-assets";
 import { RiderColors, RiderFonts } from "@/constants/rider-theme";
 import { useRiderAuth } from "@/context/rider-auth";
 import { moneyBob, shortDate } from "@/lib/geo";
-import { listRiderOrders, riderErrorMessage, type MobileRiderOrder } from "@/lib/rider-api";
+import { listRiderOrders, RiderApiError, riderErrorMessage, type MobileRiderOrder } from "@/lib/rider-api";
 
 export default function ProfileScreen() {
   return (
@@ -33,11 +33,34 @@ function ProfileContent() {
   const earnings = delivered.reduce((sum, order) => sum + order.deliveryFee, 0);
   const activeRestaurants = useMemo(() => session?.riders.map((rider) => rider.restaurantName).join(", ") ?? "", [session?.riders]);
 
+  const runAuthorized = useCallback(
+    async <T,>(operation: (accessToken: string) => Promise<T>) => {
+      if (!token) throw new RiderApiError("unauthorized");
+
+      try {
+        return await operation(token);
+      } catch (operationError) {
+        if (!(operationError instanceof RiderApiError) || operationError.code !== "unauthorized") {
+          throw operationError;
+        }
+
+        const refreshed = await refreshSession();
+        const refreshedToken = refreshed?.accessToken;
+        if (!refreshedToken || refreshedToken === token) {
+          throw operationError;
+        }
+
+        return operation(refreshedToken);
+      }
+    },
+    [refreshSession, token],
+  );
+
   const load = useCallback(async () => {
     if (!token) return;
-    const result = await listRiderOrders(token, "history");
+    const result = await runAuthorized((accessToken) => listRiderOrders(accessToken, "history"));
     setHistory(result.orders);
-  }, [token]);
+  }, [runAuthorized, token]);
 
   useEffect(() => {
     void load().catch(() => null);
