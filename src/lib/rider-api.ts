@@ -112,6 +112,7 @@ export type RiderSessionPayload = {
   };
   riders: MobileRider[];
   activeRiders?: MobileRider[];
+  availableToday?: boolean;
 };
 
 export type RiderMePayload = {
@@ -121,12 +122,19 @@ export type RiderMePayload = {
   };
   riders: MobileRider[];
   activeRiders: MobileRider[];
+  availableToday: boolean;
   updatedAt: string;
 };
 
 export type RiderOrdersPayload = {
   orders: MobileRiderOrder[];
   scope: "available" | "mine" | "history";
+  updatedAt: string;
+};
+
+export type RiderAvailabilityPayload = {
+  activeRiders: MobileRider[];
+  available: boolean;
   updatedAt: string;
 };
 
@@ -206,6 +214,8 @@ export function riderErrorMessage(error: unknown) {
   if (code === "rider-membership-inactive") return "Tu rider no tiene una membresia activa.";
   if (code === "rider-account-not-linked") return "Tu cuenta todavia no esta vinculada a un rider aprobado.";
   if (code === "rider-account-already-linked") return "Ese rider ya esta vinculado a otra cuenta.";
+  if (code === "invalid-rider-availability") return "No pudimos actualizar tu disponibilidad.";
+  if (code === "rider-availability-failed") return "No pudimos guardar tu turno activo.";
   if (code === "email-already-exists") return "Ese correo ya tiene una cuenta.";
   if (code === "order-not-available") return "La carrera ya no esta disponible.";
   if (code === "order-already-assigned") return "La carrera ya fue asignada a otro rider.";
@@ -266,6 +276,24 @@ export async function listRiderOrders(accessToken: string, scope: "available" | 
   return riderApi<RiderOrdersPayload>(`/api/mobile/riders/orders?scope=${encodeURIComponent(scope)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     method: "GET",
+  });
+}
+
+export async function updateRiderAvailability(
+  accessToken: string,
+  input: {
+    accuracyMeters?: number | null;
+    heading?: number | null;
+    isAvailable: boolean;
+    latitude?: number | null;
+    longitude?: number | null;
+    speedMetersPerSecond?: number | null;
+  },
+) {
+  return riderApi<RiderAvailabilityPayload>("/api/mobile/riders/availability", {
+    body: JSON.stringify(input),
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    method: "POST",
   });
 }
 

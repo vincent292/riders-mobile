@@ -2,8 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image } from "expo-image";
 import * as Location from "expo-location";
-import { Check, MapPinned, Navigation, PackageCheck, X } from "lucide-react-native";
-import { Animated, Linking, PanResponder, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Check, MapPinned, Navigation, PackageCheck, Power, X } from "lucide-react-native";
+import { ActivityIndicator, Animated, Linking, PanResponder, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AuthGate } from "@/components/auth-gate";
@@ -18,6 +18,7 @@ import {
   listRiderOrders,
   RiderApiError,
   riderErrorMessage,
+  updateRiderAvailability,
   updateRiderLocation,
   updateRiderOrderStatus,
   type MobileRiderOrder,
@@ -41,6 +42,8 @@ function RiderHome() {
   const [rejectedIds, setRejectedIds] = useState<string[]>([]);
   const [currentLocation, setCurrentLocation] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState("Ubicacion pendiente");
+  const [availableToday, setAvailableToday] = useState(Boolean(session?.availableToday));
+  const [availabilityPending, setAvailabilityPending] = useState(false);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const token = session?.accessToken ?? "";
@@ -50,8 +53,12 @@ function RiderHome() {
   const activeOrder = mineOrders.find((order) => order.dispatch?.status === "active" || order.dispatch?.status === "arrived") ?? demoActiveOrder;
   const activeOrderId = activeOrder?.id ?? "";
   const visibleAvailable = availableOrders.filter((order) => !rejectedIds.includes(order.id));
-  const availableToShow = visibleAvailable.length ? visibleAvailable : demoDispatchStatus === "available" ? [demoOrder] : [];
+  const availableToShow = availableToday ? (visibleAvailable.length ? visibleAvailable : demoDispatchStatus === "available" ? [demoOrder] : []) : [];
   const showingDemoOrder = availableToShow.some((order) => isDemoOrderId(order.id));
+
+  useEffect(() => {
+    setAvailableToday(Boolean(session?.availableToday));
+  }, [session?.availableToday]);
 
   const runAuthorized = useCallback(
     async <T,>(operation: (accessToken: string) => Promise<T>) => {
@@ -76,17 +83,20 @@ function RiderHome() {
     [refreshSession, token],
   );
 
-  const loadOrders = useCallback(async () => {
+  const loadOrders = useCallback(async (options: { includeAvailable?: boolean } = {}) => {
     if (!token) return;
+    const shouldLoadAvailable = options.includeAvailable ?? availableToday;
     const [available, mine] = await runAuthorized((accessToken) =>
       Promise.all([
-        listRiderOrders(accessToken, "available"),
+        shouldLoadAvailable
+          ? listRiderOrders(accessToken, "available")
+          : Promise.resolve({ orders: [], scope: "available" as const, updatedAt: new Date().toISOString() }),
         listRiderOrders(accessToken, "mine"),
       ]),
     );
     setAvailableOrders(available.orders);
     setMineOrders(mine.orders);
-  }, [runAuthorized, token]);
+  }, [availableToday, runAuthorized, token]);
 
   useEffect(() => {
     let mounted = true;
@@ -187,6 +197,71 @@ function RiderHome() {
     return () => clearInterval(interval);
   }, [loadOrders, token]);
 
+  const setAvailability = useCallback(
+    async (nextAvailable: boolean) => {
+      if (!token || availabilityPending) return;
+      setError("");
+      setAvailabilityPending(true);
+
+      try {
+        let locationPayload: {
+          accuracyMeters?: number | null;
+          heading?: number | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          speedMetersPerSecond?: number | null;
+        } = {
+          latitude: currentLocation?.latitude ?? null,
+          longitude: currentLocation?.longitude ?? null,
+        };
+
+        if (nextAvailable) {
+          setLocationStatus("Tomando ubicacion");
+          const permission = await Location.requestForegroundPermissionsAsync();
+          if (permission.status !== "granted") {
+            throw new RiderApiError("invalid-rider-location");
+          }
+
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+            mayShowUserSettingsDialog: true,
+          });
+          const nextLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          setCurrentLocation(nextLocation);
+          locationPayload = {
+            accuracyMeters: position.coords.accuracy,
+            heading: position.coords.heading,
+            latitude: nextLocation.latitude,
+            longitude: nextLocation.longitude,
+            speedMetersPerSecond: position.coords.speed,
+          };
+        }
+
+        const result = await runAuthorized((accessToken) =>
+          updateRiderAvailability(accessToken, {
+            ...locationPayload,
+            isAvailable: nextAvailable,
+          }),
+        );
+        setAvailableToday(result.available);
+        setRejectedIds([]);
+        if (!result.available) setAvailableOrders([]);
+        setLocationStatus(result.available ? "Activo para recibir" : "Inactivo hoy");
+        await refreshSession().catch(() => null);
+        await loadOrders({ includeAvailable: result.available }).catch(() => null);
+      } catch (availabilityError) {
+        setError(riderErrorMessage(availabilityError));
+        setLocationStatus(availableToday ? "Activo para recibir" : "Inactivo hoy");
+      } finally {
+        setAvailabilityPending(false);
+      }
+    },
+    [availabilityPending, availableToday, currentLocation, loadOrders, refreshSession, runAuthorized, token],
+  );
+
   const refresh = useCallback(async () => {
     setError("");
     setRefreshing(true);
@@ -245,11 +320,20 @@ function RiderHome() {
   return (
     <RiderScreen>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <RiderHeader title={activeOrder ? "Entrega activa" : "Carrera asignada"} subtitle={locationStatus} />
+        <RiderHeader
+          title={activeOrder ? "Entrega activa" : availableToday ? "Turno activo" : "Rider inactivo"}
+          subtitle={activeOrder ? locationStatus : availableToday ? "Recibiendo carreras" : "Activa tu turno"}
+        />
         <ScrollView
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl onRefresh={refresh} refreshing={refreshing} tintColor={RiderColors.lime} />}
           showsVerticalScrollIndicator={false}>
+          <AvailabilityCard
+            activeRidersCount={session?.activeRiders.length ?? 0}
+            isAvailable={availableToday}
+            loading={availabilityPending}
+            onChange={setAvailability}
+          />
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {activeOrder ? (
@@ -263,10 +347,16 @@ function RiderHome() {
             <>
               <View style={styles.availablePanel}>
                 <View style={styles.availableCopy}>
-                  <Text style={styles.availableEyebrow}>{showingDemoOrder ? "Vista demo" : "Turno activo"}</Text>
-                  <Text style={styles.availableTitle}>{availableToShow.length ? "Carreras esperando rider" : "Esperando nuevas carreras"}</Text>
+                  <Text style={styles.availableEyebrow}>{showingDemoOrder ? "Vista demo" : availableToday ? "Turno activo" : "Turno inactivo"}</Text>
+                  <Text style={styles.availableTitle}>
+                    {availableToday ? (availableToShow.length ? "Carreras esperando rider" : "Esperando nuevas carreras") : "No recibiras carreras"}
+                  </Text>
                   <Text style={styles.availableText}>
-                    {showingDemoOrder ? "Pedido local para revisar el diseno" : `${availableToShow.length} solicitudes disponibles ahora`}
+                    {availableToday
+                      ? showingDemoOrder
+                        ? "Pedido local para revisar el diseno"
+                        : `${availableToShow.length} solicitudes disponibles ahora`
+                      : "Activa tu turno cuando estes listo para repartir"}
                   </Text>
                 </View>
                 <Image source={RiderAssets.illustrations.helmet} style={styles.availableImage} contentFit="contain" />
@@ -293,13 +383,60 @@ function RiderHome() {
                   />
                 ))
               ) : (
-                <EmptyRidesState text="Te avisaremos cuando caja marque un pedido delivery como listo." />
+                <EmptyRidesState
+                  text={
+                    availableToday
+                      ? "Te avisaremos cuando caja marque un pedido delivery como listo."
+                      : "Cuando actives tu turno entraras en la seleccion automatica del restaurante."
+                  }
+                  title={availableToday ? "No hay carreras disponibles" : "Turno inactivo"}
+                />
               )}
             </>
           )}
         </ScrollView>
       </SafeAreaView>
     </RiderScreen>
+  );
+}
+
+function AvailabilityCard({
+  activeRidersCount,
+  isAvailable,
+  loading,
+  onChange,
+}: {
+  activeRidersCount: number;
+  isAvailable: boolean;
+  loading: boolean;
+  onChange: (nextAvailable: boolean) => Promise<void>;
+}) {
+  return (
+    <View style={[styles.availabilityCard, isAvailable && styles.availabilityCardActive]}>
+      <View style={styles.availabilityIcon}>
+        {loading ? (
+          <ActivityIndicator color={RiderColors.ink} size="small" />
+        ) : (
+          <Power color={isAvailable ? RiderColors.ink : RiderColors.white} size={20} strokeWidth={2.8} />
+        )}
+      </View>
+      <View style={styles.availabilityCopy}>
+        <Text style={styles.availabilityTitle}>{isAvailable ? "Activo hoy" : "Inactivo hoy"}</Text>
+        <Text style={styles.availabilityText}>
+          {isAvailable
+            ? `${activeRidersCount} afiliacion${activeRidersCount === 1 ? "" : "es"} lista${activeRidersCount === 1 ? "" : "s"} para recibir carreras.`
+            : "Activa tu turno para aparecer en el reparto automatico."}
+        </Text>
+      </View>
+      <Switch
+        disabled={loading}
+        ios_backgroundColor="rgba(255,255,255,0.22)"
+        onValueChange={(value) => void onChange(value)}
+        thumbColor={isAvailable ? RiderColors.ink : RiderColors.white}
+        trackColor={{ false: "rgba(255,255,255,0.22)", true: RiderColors.lime }}
+        value={isAvailable}
+      />
+    </View>
   );
 }
 
@@ -606,6 +743,48 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 18,
     padding: 14,
+  },
+  availabilityCard: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 22,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 82,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  availabilityCardActive: {
+    backgroundColor: "rgba(199,240,0,0.14)",
+    borderColor: "rgba(199,240,0,0.34)",
+  },
+  availabilityIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: 19,
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  availabilityCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  availabilityTitle: {
+    color: RiderColors.white,
+    fontFamily: RiderFonts.black,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  availabilityText: {
+    color: RiderColors.white,
+    fontFamily: RiderFonts.semibold,
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 17,
+    opacity: 0.78,
   },
   availablePanel: {
     alignItems: "center",

@@ -55,6 +55,7 @@ type RiderAuthSession = {
   };
   riders: MobileRider[];
   activeRiders: MobileRider[];
+  availableToday: boolean;
 };
 
 type PendingGoogleSession = {
@@ -83,6 +84,7 @@ function normalizeSession(payload: RiderSessionPayload): RiderAuthSession {
     user: payload.user,
     riders: payload.riders,
     activeRiders: payload.activeRiders ?? payload.riders.filter((rider) => rider.status === "active"),
+    availableToday: payload.availableToday ?? false,
   };
 }
 
@@ -148,7 +150,10 @@ function parseStoredSession(value: string | null) {
   try {
     const parsed = JSON.parse(value) as RiderAuthSession;
     if (!parsed.accessToken || !parsed.user?.id) return null;
-    return parsed;
+    return {
+      ...parsed,
+      availableToday: parsed.availableToday ?? false,
+    };
   } catch {
     return null;
   }
@@ -181,6 +186,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
       user: me.user,
       riders: me.riders,
       activeRiders: me.activeRiders,
+      availableToday: me.availableToday,
     });
   }, [saveSession, session]);
 
@@ -205,6 +211,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
           user: me.user,
           riders: me.riders,
           activeRiders: me.activeRiders,
+          availableToday: me.availableToday,
         });
       } catch {
         if (mounted) await saveSession(null);
@@ -305,6 +312,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
         user: me.user,
         riders: me.riders,
         activeRiders: me.activeRiders,
+        availableToday: me.availableToday,
       });
     } catch (error) {
       if (error instanceof RiderApiError && error.code === "rider-account-not-linked") {
@@ -329,6 +337,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
         user: payload.user,
         riders: payload.riders,
         activeRiders,
+        availableToday: false,
       });
       setPendingGoogleSession(null);
     },
