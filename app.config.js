@@ -1,9 +1,13 @@
+const fs = require("node:fs");
+
 module.exports = ({ config }) => {
   const googleMapsApiKey =
     process.env.GOOGLE_MAPS_ANDROID_API_KEY ||
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
     "";
-  const googleServicesFile = process.env.GOOGLE_SERVICES_JSON || "";
+  const googleServicesFile =
+    process.env.GOOGLE_SERVICES_JSON ||
+    (fs.existsSync("./google-services.json") ? "./google-services.json" : "");
   const plugins = [...(config.plugins ?? [])];
 
   if (!plugins.some((plugin) => Array.isArray(plugin) ? plugin[0] === "expo-location" : plugin === "expo-location")) {
