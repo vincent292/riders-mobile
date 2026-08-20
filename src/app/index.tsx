@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image } from "expo-image";
 import * as Location from "expo-location";
 import { Check, MapPinned, Navigation, PackageCheck, Power, X } from "lucide-react-native";
-import { ActivityIndicator, Animated, Linking, PanResponder, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Animated, AppState, Linking, PanResponder, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AuthGate } from "@/components/auth-gate";
@@ -16,8 +16,7 @@ import { distanceKm, estimateEtaMinutes, formatDistance, googleDirectionsUrl, mo
 import {
   acceptRiderOffer,
   acceptRiderOrder,
-  listRiderOffers,
-  listRiderOrders,
+  fetchRiderDashboard,
   rejectRiderOffer,
   RiderApiError,
   riderErrorMessage,
@@ -27,6 +26,7 @@ import {
   type MobileRiderOffer,
   type MobileRiderOrder,
 } from "@/lib/rider-api";
+import { subscribeToRiderOrderChanges } from "@/lib/rider-events";
 
 type RideCardItem = {
   directOffer: boolean;
@@ -110,18 +110,10 @@ function RiderHome() {
   const loadOrders = useCallback(async (options: { includeAvailable?: boolean } = {}) => {
     if (!token) return;
     const shouldLoadAvailable = options.includeAvailable ?? availableToday;
-    const [offers, available, mine] = await runAuthorized((accessToken) =>
-      Promise.all([
-        shouldLoadAvailable ? listRiderOffers(accessToken) : Promise.resolve({ offers: [], updatedAt: new Date().toISOString() }),
-        shouldLoadAvailable
-          ? listRiderOrders(accessToken, "available")
-          : Promise.resolve({ orders: [], scope: "available" as const, updatedAt: new Date().toISOString() }),
-        listRiderOrders(accessToken, "mine"),
-      ]),
-    );
-    setRiderOffers(offers.offers);
-    setAvailableOrders(available.orders);
-    setMineOrders(mine.orders);
+    const dashboard = await runAuthorized((accessToken) => fetchRiderDashboard(accessToken, shouldLoadAvailable));
+    setRiderOffers(dashboard.offers);
+    setAvailableOrders(dashboard.available);
+    setMineOrders(dashboard.mine);
   }, [availableToday, runAuthorized, token]);
 
   useEffect(() => {
@@ -169,9 +161,9 @@ function RiderHome() {
       subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          distanceInterval: 12,
+          distanceInterval: 25,
           mayShowUserSettingsDialog: true,
-          timeInterval: 7000,
+          timeInterval: 15000,
         },
         (position) => {
           const nextLocation = {
@@ -182,7 +174,7 @@ function RiderHome() {
           setLocationStatus("Compartiendo ubicacion");
 
           const now = Date.now();
-          if (now - lastSentAt < 6000) return;
+          if (now - lastSentAt < 15000) return;
           lastSentAt = now;
 
           void runAuthorized((accessToken) =>
@@ -210,12 +202,23 @@ function RiderHome() {
   useEffect(() => {
     if (!token) return;
 
-    void loadOrders().catch((loadError) => setError(riderErrorMessage(loadError)));
-    const interval = setInterval(() => {
+    const refreshOrders = () => {
+      if (AppState.currentState !== "active") return;
       void loadOrders().catch(() => null);
-    }, availableToday && !activeOrderId ? 5000 : 15000);
+    };
 
-    return () => clearInterval(interval);
+    void loadOrders().catch((loadError) => setError(riderErrorMessage(loadError)));
+    const interval = setInterval(refreshOrders, availableToday || activeOrderId ? 30000 : 60000);
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshOrders();
+    });
+    const unsubscribeOrders = subscribeToRiderOrderChanges(refreshOrders);
+
+    return () => {
+      clearInterval(interval);
+      appStateSubscription.remove();
+      unsubscribeOrders();
+    };
   }, [activeOrderId, availableToday, loadOrders, token]);
 
   const setAvailability = useCallback(

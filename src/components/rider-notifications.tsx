@@ -6,12 +6,13 @@ import { Platform } from "react-native";
 
 import { useRiderAuth } from "@/context/rider-auth";
 import { registerRiderPushToken } from "@/lib/rider-api";
+import { notifyRiderOrdersChanged } from "@/lib/rider-events";
 
 const riderChannelId = "rider-dispatch";
 
 export function RiderNotifications() {
   const router = useRouter();
-  const { refreshSession, session } = useRiderAuth();
+  const { session } = useRiderAuth();
   const accessToken = session?.accessToken ?? "";
   const riderId = session?.activeRiders[0]?.id ?? session?.riders[0]?.id;
 
@@ -87,13 +88,13 @@ export function RiderNotifications() {
       if (cancelled) return;
 
       receivedSubscription = Notifications.addNotificationReceivedListener(() => {
-        void refreshSession().catch(() => null);
+        notifyRiderOrdersChanged();
       });
       responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
         const type = response.notification.request.content.data?.type;
         if (type === "rider_delivery_offer") {
           router.replace("/");
-          void refreshSession().catch(() => null);
+          notifyRiderOrdersChanged();
         }
       });
 
@@ -110,7 +111,7 @@ export function RiderNotifications() {
       receivedSubscription?.remove();
       responseSubscription?.remove();
     };
-  }, [refreshSession, router]);
+  }, [router]);
 
   return null;
 }

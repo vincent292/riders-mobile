@@ -149,6 +149,13 @@ export type RiderOffersPayload = {
   updatedAt: string;
 };
 
+export type RiderDashboardPayload = {
+  available: MobileRiderOrder[];
+  mine: MobileRiderOrder[];
+  offers: MobileRiderOffer[];
+  updatedAt: string;
+};
+
 export type RiderAvailabilityPayload = {
   activeRiders: MobileRider[];
   available: boolean;
@@ -310,6 +317,13 @@ export async function listRiderOffers(accessToken: string) {
   });
 }
 
+export async function fetchRiderDashboard(accessToken: string, includeAvailable: boolean) {
+  return riderApi<RiderDashboardPayload>(`/api/mobile/riders/dashboard?includeAvailable=${includeAvailable}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    method: "GET",
+  });
+}
+
 export async function updateRiderAvailability(
   accessToken: string,
   input: {
@@ -389,20 +403,22 @@ export async function updateRiderLocation(
     speedMetersPerSecond?: number | null;
   },
 ) {
-  try {
-    return await riderApi<{ order: MobileRiderOrder }>(`/api/mobile/riders/orders/${encodeURIComponent(orderId)}/location`, {
-      body: JSON.stringify(input),
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      method: "POST",
-    });
-  } catch (error) {
-    if (!(error instanceof RiderApiError) || error.status !== 404) {
-      throw error;
+  if (config.supabaseUrl && config.supabasePublishableKey) {
+    try {
+      await updateRiderLocationViaSupabaseRpc(accessToken, orderId, input);
+      return { updatedAt: new Date().toISOString() };
+    } catch (error) {
+      if (!(error instanceof RiderApiError) || error.status !== 404) {
+        throw error;
+      }
     }
-
-    await updateRiderLocationViaSupabaseRpc(accessToken, orderId, input);
-    return { order: null as unknown as MobileRiderOrder };
   }
+
+  return riderApi<{ updatedAt: string }>(`/api/mobile/riders/orders/${encodeURIComponent(orderId)}/location`, {
+    body: JSON.stringify(input),
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    method: "POST",
+  });
 }
 
 async function updateRiderLocationViaSupabaseRpc(
