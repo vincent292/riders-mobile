@@ -192,6 +192,20 @@ async function parseJsonResponse(response: Response) {
 }
 
 async function riderApi<T>(path: string, init: RequestInit, fallbackCode = "rider-api-failed"): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await riderApiOnce<T>(path, init, fallbackCode);
+    } catch (error) {
+      const transient = error instanceof RiderApiError &&
+        (["api-network-failed", "api-timeout"].includes(error.code) || (error.status ?? 0) >= 500);
+      // Mutations must be reconciled with the server before the rider retries them.
+      if (init.method !== "GET" || attempt >= 1 || !transient) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+  }
+}
+
+async function riderApiOnce<T>(path: string, init: RequestInit, fallbackCode: string): Promise<T> {
   const url = apiUrl(path);
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timeout = controller
@@ -200,13 +214,21 @@ async function riderApi<T>(path: string, init: RequestInit, fallbackCode = "ride
       }, apiTimeoutMs)
     : null;
 
-  let response: Response;
   try {
-    response = await fetch(url, {
+    const response = await fetch(url, {
       ...init,
       signal: controller?.signal,
     });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) {
+      const code = response.status === 401 ? "unauthorized" : response.status === 404 && !errorCodeFromBody(data, "")
+        ? "rider-api-not-deployed" : errorCodeFromBody(data, fallbackCode);
+      throw new RiderApiError(code, { status: response.status, url });
+    }
+    if (data == null) throw new RiderApiError("invalid-api-response", { url });
+    return data as T;
   } catch (error) {
+    if (error instanceof RiderApiError) throw error;
     const isAbort = error instanceof Error && error.name === "AbortError";
     throw new RiderApiError(isAbort ? "api-timeout" : "api-network-failed", {
       causeMessage: error instanceof Error ? error.message : String(error),
@@ -216,22 +238,16 @@ async function riderApi<T>(path: string, init: RequestInit, fallbackCode = "ride
     if (timeout) clearTimeout(timeout);
   }
 
-  const data = await parseJsonResponse(response);
-
-  if (!response.ok) {
-    const code = response.status === 404 && !errorCodeFromBody(data, "")
-      ? "rider-api-not-deployed"
-      : errorCodeFromBody(data, fallbackCode);
-    throw new RiderApiError(code, { status: response.status, url });
-  }
-
-  return data as T;
 }
 
 export function riderErrorMessage(error: unknown) {
   const code = error instanceof RiderApiError ? error.code : error instanceof Error ? error.message : "rider-api-failed";
-  if (code === "api-network-failed") return "No pudimos conectar con el SaaS. Usa una URL publica o una IP/tunel accesible desde el celular.";
-  if (code === "api-timeout") return "El SaaS tardo demasiado en responder.";
+  if (code === "api-network-failed") return "Sin conexión con Yopido. Revisa tus datos o Wi-Fi y vuelve a intentar.";
+  if (code === "api-timeout") return "Yopido está tardando en responder. Actualiza para comprobar el estado de tu pedido.";
+  if (code === "invalid-api-response") return "No pudimos leer la respuesta de Yopido. Inténtalo nuevamente.";
+  if (code === "location-permission-denied") return "Permite el acceso a tu ubicación para comenzar el turno.";
+  if (code === "location-services-disabled") return "Activa el GPS del teléfono para comenzar el turno.";
+  if (code === "location-timeout") return "El GPS no responde. Busca un lugar abierto e inténtalo nuevamente.";
   if (code === "api-base-url-required") return "Configura EXPO_PUBLIC_API_BASE_URL.";
   if (code === "rider-api-not-deployed") return "La API de riders no esta desplegada en esa URL.";
   if (code === "invalid-rider-credentials") return "Correo o contrasena incorrectos.";
@@ -258,7 +274,7 @@ export function riderErrorMessage(error: unknown) {
   if (code === "google-not-configured") return "Faltan las variables publicas de Supabase para usar Google.";
   if (code === "google-cancelled") return "Ingreso con Google cancelado.";
   if (code === "google-rider-link-required") return "Google ingreso bien. Vincula tu carnet y placa para activar el rider.";
-  return `No se pudo completar la accion (${code}).`;
+  return "No se pudo completar la acción. Inténtalo nuevamente o contacta al restaurante.";
 }
 
 export async function loginRider(input: { email: string; password: string }) {
@@ -436,7 +452,11 @@ async function updateRiderLocationViaSupabaseRpc(
     throw new RiderApiError("rider-location-failed");
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), apiTimeoutMs);
+  try {
   const response = await fetch(`${config.supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/update_rider_live_location`, {
+    signal: controller.signal,
     body: JSON.stringify({
       p_accuracy_meters: input.accuracyMeters ?? null,
       p_heading: input.heading ?? null,
@@ -454,6 +474,9 @@ async function updateRiderLocationViaSupabaseRpc(
   });
 
   if (!response.ok) {
-    throw new RiderApiError("rider-location-failed", { status: response.status });
+    throw new RiderApiError(response.status === 401 ? "unauthorized" : "rider-location-failed", { status: response.status });
+  }
+  } finally {
+    clearTimeout(timeout);
   }
 }

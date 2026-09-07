@@ -15,6 +15,8 @@ module.exports = ({ config }) => {
       "expo-location",
       {
         locationWhenInUsePermission: "Permite que Yopido Riders use tu ubicacion durante la entrega.",
+        isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
       },
     ]);
   }
@@ -41,6 +43,7 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
+    name: "Yopido Riders",
     android: {
       ...config.android,
       package: "shop.yopido.riders",

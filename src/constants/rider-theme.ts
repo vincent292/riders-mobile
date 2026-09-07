@@ -1,16 +1,19 @@
 export const RiderColors = {
-  blue900: "#12355B",
-  blue950: "#0B1626",
+  blue900: "#243C38",
+  blue950: "#161D1B",
   lime: "#C7F000",
-  limeDark: "#8FC900",
-  orange: "#FF8A00",
-  red: "#FF3B30",
+  limeDark: "#426500",
+  orange: "#A65015",
+  red: "#C73737",
   white: "#FFFFFF",
-  ink: "#0B1626",
-  muted: "#8A939E",
-  line: "#E1E6EC",
+  ink: "#18231F",
+  muted: "#606B65",
+  line: "#DFE5E0",
   card: "#FFFFFF",
-  soft: "#F2F4F7",
+  soft: "#F3F6F4",
+  teal: "#117B70",
+  warning: "#FFF3DB",
+  dangerSoft: "#FCECEC",
 };
 
 export const RiderFonts = {

@@ -1,9 +1,13 @@
 import { Tabs } from 'expo-router';
 import { Clock3, MapPinned, UserRound, type LucideIcon } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RiderColors, RiderFonts } from '@/constants/rider-theme';
 import { useRiderAuth } from '@/context/rider-auth';
+import { useRiderDashboard } from '@/context/rider-dashboard';
+import { useClock } from '@/hooks/use-clock';
+import { offerSeconds } from '@/lib/rider-domain';
 
 const tabIcons: Record<string, LucideIcon> = {
   historial: Clock3,
@@ -12,6 +16,10 @@ const tabIcons: Record<string, LucideIcon> = {
 };
 
 export default function AppTabs() {
+  const insets = useSafeAreaInsets();
+  const { activeOrder, offers } = useRiderDashboard();
+  const now = useClock();
+  const badge = activeOrder ? 1 : offers.filter((offer) => offerSeconds(offer.expiresAt, now) !== 0).length;
   const { pendingGoogleLink, session } = useRiderAuth();
   const hideTabs = !session || pendingGoogleLink;
 
@@ -19,15 +27,15 @@ export default function AppTabs() {
     <Tabs
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: RiderColors.lime,
-        tabBarInactiveTintColor: RiderColors.white,
+        tabBarActiveTintColor: RiderColors.ink,
+        tabBarInactiveTintColor: RiderColors.muted,
         tabBarStyle: {
-          backgroundColor: '#08111D',
-          borderTopColor: 'rgba(255,255,255,0.08)',
+          backgroundColor: RiderColors.white,
+          borderTopColor: RiderColors.line,
           borderTopWidth: 1,
           display: hideTabs ? 'none' : 'flex',
-          height: 72,
-          paddingBottom: 8,
+          height: 64 + Math.max(insets.bottom, 8),
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 7,
         },
         tabBarLabelStyle: {
@@ -44,7 +52,7 @@ export default function AppTabs() {
           );
         },
       })}>
-      <Tabs.Screen name="index" options={{ title: 'Mapa' }} />
+      <Tabs.Screen name="index" options={{ title: 'Entregas', tabBarBadge: badge || undefined, tabBarBadgeStyle: { backgroundColor: RiderColors.teal, color: RiderColors.white } }} />
       <Tabs.Screen name="historial" options={{ title: 'Historial' }} />
       <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
       <Tabs.Screen name="auth/callback" options={{ href: null, title: 'Auth' }} />

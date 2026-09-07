@@ -1,15 +1,15 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { Image } from "expo-image";
 import { AtSign, BadgeCheck, Bike, Eye, EyeOff, LockKeyhole, LogIn, UserRound, type LucideIcon } from "lucide-react-native";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BrandedLoading, LogoMark, PrimaryButton, RiderScreen } from "@/components/rider-ui";
-import { RiderPermissionsGate } from "@/components/rider-permissions-gate";
 import { RiderAssets } from "@/constants/rider-assets";
 import { RiderColors, RiderFonts } from "@/constants/rider-theme";
 import { useRiderAuth } from "@/context/rider-auth";
-import { riderErrorMessage } from "@/lib/rider-api";
+import { RiderApiError, riderErrorMessage } from "@/lib/rider-api";
+import { validateRiderForm } from "@/lib/rider-domain";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { loading, pendingGoogleLink, session } = useRiderAuth();
@@ -26,7 +26,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <AuthScreen forceGoogleLink={pendingGoogleLink} />;
   }
 
-  return <RiderPermissionsGate>{children}</RiderPermissionsGate>;
+  return <>{children}</>;
 }
 
 function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
@@ -38,32 +38,41 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
   const [plateNumber, setPlateNumber] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const busy = useRef(false);
 
   const title = mode === "register" ? "Crear cuenta rider" : mode === "google-link" ? "Vincular Google" : "Entrar como rider";
 
   async function submit() {
+    if (busy.current) return;
+    const input = { email: email.trim().toLowerCase(), password, documentNumber: documentNumber.trim(), plateNumber: plateNumber.trim().toUpperCase() };
+    const validation = validateRiderForm(input, mode);
+    if (validation) { setError(validation); return; }
+    busy.current = true;
     setError("");
     setPending(true);
     try {
       if (mode === "google-link") {
-        await auth.linkPendingGoogleRider({ documentNumber, plateNumber });
+        await auth.linkPendingGoogleRider(input);
         return;
       }
 
       if (mode === "register") {
-        await auth.register({ email, password, documentNumber, plateNumber });
+        await auth.register(input);
         return;
       }
 
-      await auth.signIn({ email, password });
+      await auth.signIn(input);
     } catch (submitError) {
       setError(riderErrorMessage(submitError));
     } finally {
+      busy.current = false;
       setPending(false);
     }
   }
 
   async function google() {
+    if (busy.current) return;
+    busy.current = true;
     setError("");
     setPending(true);
     try {
@@ -71,8 +80,9 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
     } catch (googleError) {
       const message = riderErrorMessage(googleError);
       setError(message);
-      if (message.includes("Vincula")) setMode("google-link");
+      if (googleError instanceof RiderApiError && googleError.code === "google-rider-link-required") setMode("google-link");
     } finally {
+      busy.current = false;
       setPending(false);
     }
   }
@@ -95,14 +105,14 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
                 <Text style={styles.subtitle}>
                   {mode === "google-link"
                     ? "Confirma tus datos de rider aprobado para activar esta cuenta."
-                    : "Usa la cuenta vinculada al rider aprobado en el SaaS."}
+                    : mode === "register" ? "Tu restaurante debe tener tu correo, documento y placa aprobados." : "Bienvenido de vuelta. Tu próximo recorrido empieza aquí."}
                 </Text>
               </View>
 
               {mode !== "google-link" ? (
                 <>
                   <Field autoCapitalize="none" icon={AtSign} keyboardType="email-address" label="Correo" onChangeText={setEmail} value={email} />
-                  <Field icon={LockKeyhole} label="Contrasena" onChangeText={setPassword} secureTextEntry value={password} />
+                  <Field autoCapitalize="none" icon={LockKeyhole} label="Contraseña" onChangeText={setPassword} secureTextEntry value={password} />
                 </>
               ) : null}
 
@@ -113,9 +123,9 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
                 </>
               ) : null}
 
-              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
 
-              <PrimaryButton onPress={submit} tone={mode === "google-link" ? "dark" : "lime"}>
+              <PrimaryButton disabled={pending} onPress={submit} tone={mode === "google-link" ? "dark" : "lime"}>
                 {pending ? (
                   <ActivityIndicator color={mode === "google-link" ? RiderColors.white : RiderColors.ink} />
                 ) : (
@@ -129,7 +139,7 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
               </PrimaryButton>
 
               {mode !== "google-link" ? (
-                <PrimaryButton onPress={google} tone="dark">
+                <PrimaryButton disabled={pending} onPress={google} tone="dark">
                   <View style={styles.buttonContent}>
                     <UserRound color={RiderColors.white} size={18} strokeWidth={2.6} />
                     <Text style={styles.buttonWhite}>Continuar con Google</Text>
@@ -139,7 +149,7 @@ function AuthScreen({ forceGoogleLink }: { forceGoogleLink: boolean }) {
 
               {!forceGoogleLink ? (
                 <View style={styles.modeRow}>
-                  <Pressable onPress={() => setMode(mode === "login" ? "register" : "login")}>
+                  <Pressable accessibilityRole="button" disabled={pending} style={{ minHeight: 48, justifyContent: "center" }} onPress={() => { setError(""); setMode(mode === "login" ? "register" : "login"); }}>
                     <Text style={styles.modeLink}>{mode === "login" ? "Registrar rider aprobado" : "Ya tengo cuenta"}</Text>
                   </Pressable>
                 </View>
@@ -175,12 +185,14 @@ function Field({
         <Icon color={RiderColors.blue900} size={19} strokeWidth={2.3} />
         <TextInput
           {...props}
+          accessibilityLabel={label}
+          autoCorrect={false}
           secureTextEntry={isPassword && !passwordVisible}
           placeholderTextColor="#9AA4B2"
           style={styles.input}
         />
         {isPassword ? (
-          <Pressable hitSlop={10} onPress={() => setPasswordVisible((visible) => !visible)}>
+          <Pressable accessibilityRole="button" accessibilityLabel={passwordVisible ? "Ocultar contraseña" : "Mostrar contraseña"} hitSlop={10} onPress={() => setPasswordVisible((visible) => !visible)}>
             {passwordVisible ? (
               <EyeOff color={RiderColors.muted} size={20} strokeWidth={2.2} />
             ) : (
@@ -206,11 +218,11 @@ const styles = StyleSheet.create({
     minHeight: "100%",
     paddingHorizontal: 16,
     paddingVertical: 14,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 520,
   },
   heroPanel: {
-    borderColor: "rgba(199,240,0,0.22)",
-    borderRadius: 8,
-    borderWidth: 1,
     height: 148,
     overflow: "hidden",
     alignSelf: "center",
@@ -221,16 +233,9 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   panel: {
-    backgroundColor: RiderColors.card,
-    borderRadius: 8,
-    borderTopColor: RiderColors.lime,
-    borderTopWidth: 4,
-    elevation: 8,
+    backgroundColor: "transparent",
     gap: 14,
     padding: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
     alignSelf: "center",
     width: "100%",
   },

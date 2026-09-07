@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
-import { Bell } from 'lucide-react-native';
+import { AlertCircle, RefreshCw } from 'lucide-react-native';
 import { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { RiderAssets } from '@/constants/rider-assets';
 import { RiderColors, RiderFonts } from '@/constants/rider-theme';
@@ -34,7 +34,7 @@ export function BrandedLoading({ message = 'Cargando tu ruta...' }: { message?: 
 export function RiderHeader({
   title,
   action,
-  subtitle = 'En linea',
+  subtitle = 'Yopido Riders',
 }: {
   title: string;
   subtitle?: string;
@@ -44,21 +44,16 @@ export function RiderHeader({
     <View style={styles.header}>
       <View style={styles.headerIdentity}>
         <View style={styles.headerMark}>
-          <Image source={RiderAssets.icons.symbolLight} style={styles.headerMarkImage} contentFit="contain" />
+          <Image source={RiderAssets.icons.symbolDark} style={styles.headerMarkImage} contentFit="contain" />
         </View>
         <View style={styles.headerCopy}>
           <Text style={styles.headerTitle}>{title}</Text>
           <View style={styles.statusRow}>
-            <View style={styles.onlineDot} />
-            <Text numberOfLines={1} style={styles.statusText}>{subtitle}</Text>
+            <Text style={styles.statusText}>{subtitle}</Text>
           </View>
         </View>
       </View>
-      {action ?? (
-        <View style={styles.iconButton}>
-          <Bell color={RiderColors.white} size={21} strokeWidth={2.5} />
-        </View>
-      )}
+      {action}
     </View>
   );
 }
@@ -104,23 +99,45 @@ export function PrimaryButton({
   children,
   onPress,
   tone = 'lime',
+  disabled = false,
+  loading = false,
+  accessibilityLabel,
+  style,
 }: {
   children: ReactNode;
   onPress?: () => void;
   tone?: 'lime' | 'red' | 'dark';
+  disabled?: boolean;
+  loading?: boolean;
+  accessibilityLabel?: string;
+  style?: StyleProp<ViewStyle>;
 }) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
+      disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => [
         styles.primaryButton,
         tone === 'red' && styles.primaryButtonRed,
         tone === 'dark' && styles.primaryButtonDark,
         pressed && styles.pressed,
+        (disabled || loading) && { opacity: 0.55 },
+        style,
       ]}>
-      {children}
+      {loading ? <ActivityIndicator color={tone === 'lime' ? RiderColors.ink : RiderColors.white} /> : children}
     </Pressable>
   );
+}
+
+export function StatusNotice({ text, onRetry, tone = 'warning' }: { text: string; onRetry?: () => void; tone?: 'warning' | 'error' }) {
+  return <View accessibilityLiveRegion="polite" style={{ backgroundColor: tone === 'error' ? RiderColors.dangerSoft : RiderColors.warning, padding: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+    <AlertCircle color={tone === 'error' ? RiderColors.red : RiderColors.orange} size={20} />
+    <Text style={{ flex: 1, color: RiderColors.ink, fontFamily: RiderFonts.regular, fontSize: 13, lineHeight: 20 }}>{text}</Text>
+    {onRetry ? <Pressable accessibilityRole="button" accessibilityLabel="Reintentar" onPress={onRetry} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><RefreshCw size={20} color={RiderColors.ink} /></Pressable> : null}
+  </View>;
 }
 
 export function SectionLabel({ children }: { children: ReactNode }) {
@@ -130,7 +147,7 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: RiderColors.blue950,
+    backgroundColor: RiderColors.soft,
   },
   loadingScreen: {
     alignItems: 'center',
@@ -212,7 +229,7 @@ const styles = StyleSheet.create({
   },
   headerMark: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: RiderColors.lime,
     borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: 8,
     borderWidth: 1,
@@ -228,10 +245,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    color: RiderColors.white,
-    fontFamily: RiderFonts.black,
+    color: RiderColors.ink,
+    fontFamily: RiderFonts.bold,
     fontSize: 19,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   statusRow: {
     marginTop: 5,
@@ -246,10 +263,10 @@ const styles = StyleSheet.create({
     backgroundColor: RiderColors.lime,
   },
   statusText: {
-    color: RiderColors.lime,
-    fontFamily: RiderFonts.bold,
+    color: RiderColors.muted,
+    fontFamily: RiderFonts.regular,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   iconButton: {
     width: 42,
@@ -298,6 +315,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
+    paddingVertical: 12,
   },
   primaryButtonRed: {
     backgroundColor: RiderColors.red,
@@ -310,7 +328,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   sectionLabel: {
-    color: RiderColors.white,
+    color: RiderColors.ink,
     fontFamily: RiderFonts.extraBold,
     fontSize: 13,
     fontWeight: '800',
@@ -319,7 +337,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    backgroundColor: RiderColors.card,
+    backgroundColor: 'transparent',
     borderRadius: 8,
     gap: 10,
     overflow: 'hidden',
@@ -331,16 +349,16 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: RiderColors.ink,
-    fontFamily: RiderFonts.black,
-    fontSize: 20,
-    fontWeight: '900',
+    fontFamily: RiderFonts.bold,
+    fontSize: 18,
+    fontWeight: '700',
     textAlign: 'center',
   },
   emptyText: {
     color: RiderColors.muted,
-    fontFamily: RiderFonts.semibold,
+    fontFamily: RiderFonts.regular,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     lineHeight: 19,
     marginTop: 6,
     textAlign: 'center',

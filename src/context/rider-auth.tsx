@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import * as AuthSession from "expo-auth-session";
 import * as SecureStore from "expo-secure-store";
@@ -15,6 +15,7 @@ import {
 } from "@/lib/rider-api";
 import { config } from "@/lib/config";
 import { getSupabaseClient } from "@/lib/supabase";
+import { stopBackgroundDelivery } from "@/lib/background-location";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -103,11 +104,17 @@ async function refreshSupabaseTokens(session: RiderAuthSession, options: { force
   const supabase = getSupabaseClient();
   if (!supabase) return session;
 
+  const existing = await supabase.auth.getSession();
+  const live = existing.data.session;
+  const tokens = live?.user.id === session.user.id
+    ? { accessToken: live.access_token, refreshToken: live.refresh_token }
+    : session;
+
   const { data, error } = options.force
-    ? await supabase.auth.refreshSession({ refresh_token: session.refreshToken })
+    ? await supabase.auth.refreshSession({ refresh_token: tokens.refreshToken! })
     : await supabase.auth.setSession({
-        access_token: session.accessToken,
-        refresh_token: session.refreshToken,
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken!,
       });
 
   if (error || !data.session) return session;
@@ -163,6 +170,8 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<RiderAuthSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingGoogleSession, setPendingGoogleSession] = useState<PendingGoogleSession | null>(null);
+  const sessionRef = useRef<RiderAuthSession | null>(null);
+  const refreshRef = useRef<Promise<RiderAuthSession | null> | null>(null);
 
   const saveSession = useCallback(async (nextSession: RiderAuthSession | null) => {
     let sessionToSave = nextSession;
@@ -172,23 +181,32 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
     }
 
     setSession(sessionToSave);
+    sessionRef.current = sessionToSave;
     await persistSession(sessionToSave);
     return sessionToSave;
   }, []);
 
   const refreshSession = useCallback(async () => {
-    const current = session;
+    if (refreshRef.current) return refreshRef.current;
+    const current = sessionRef.current;
     if (!current) return null;
-
-    const { me, session: refreshed } = await fetchMeWithRefresh(current);
-    return saveSession({
-      ...refreshed,
-      user: me.user,
-      riders: me.riders,
-      activeRiders: me.activeRiders,
-      availableToday: me.availableToday,
-    });
-  }, [saveSession, session]);
+    const operation = (async () => {
+      try {
+        const { me, session: refreshed } = await fetchMeWithRefresh(current);
+        if (sessionRef.current !== current) return sessionRef.current;
+        return await saveSession({ ...refreshed, ...me });
+      } catch (error) {
+        if (error instanceof RiderApiError && error.code === "unauthorized" && sessionRef.current === current) {
+          await saveSession(null);
+        }
+        throw error;
+      } finally {
+        refreshRef.current = null;
+      }
+    })();
+    refreshRef.current = operation;
+    return operation;
+  }, [saveSession]);
 
   useEffect(() => {
     let mounted = true;
@@ -203,6 +221,7 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
       }
 
       setSession(stored);
+      sessionRef.current = stored;
       try {
         const { me, session: refreshed } = await fetchMeWithRefresh(stored);
         if (!mounted) return;
@@ -213,14 +232,14 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
           activeRiders: me.activeRiders,
           availableToday: me.availableToday,
         });
-      } catch {
-        if (mounted) await saveSession(null);
+      } catch (error) {
+        if (mounted && error instanceof RiderApiError && error.code === "unauthorized") await saveSession(null);
       } finally {
         if (mounted) setLoading(false);
       }
     }
 
-    void restore();
+    void restore().catch(() => { if (mounted) setLoading(false); });
 
     return () => {
       mounted = false;
@@ -345,10 +364,11 @@ export function RiderAuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    const supabase = getSupabaseClient();
-    await supabase?.auth.signOut().catch(() => null);
+    await stopBackgroundDelivery();
     setPendingGoogleSession(null);
     await saveSession(null);
+    const supabase = getSupabaseClient();
+    await supabase?.auth.signOut().catch(() => null);
   }, [saveSession]);
 
   const value = useMemo<RiderAuthContextValue>(
