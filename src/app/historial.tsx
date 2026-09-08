@@ -23,6 +23,7 @@ function HistoryContent() {
     `${order.orderNumber} ${order.restaurant.name} ${order.customerAddress}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
     .sort((a, b) => Date.parse(deliveryDate(b)) - Date.parse(deliveryDate(a))), [history.orders, now, period, query]);
   const total = filtered.reduce((sum, order) => sum + order.deliveryFee, 0);
+  const ordersTotal = filtered.reduce((sum, order) => sum + order.total, 0);
   const groups = useMemo(() => {
     const result = new Map<string, MobileRiderOrder[]>();
     filtered.forEach((order) => { const key = boliviaDay(deliveryDate(order)); result.set(key, [...(result.get(key) ?? []), order]); });
@@ -34,9 +35,10 @@ function HistoryContent() {
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={history.loading && history.loaded} onRefresh={() => { void history.refresh(); }} tintColor={C.teal} />}>
       <View accessibilityRole="tablist" style={styles.periods}>{periods.map((item) => <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: item.key === period }} onPress={() => setPeriod(item.key)} style={[styles.period, item.key === period && styles.selected]}><Text style={[styles.periodText, item.key === period && { color: C.ink }]}>{item.label}</Text></Pressable>)}</View>
       <View style={styles.summary}>
-        <Text style={styles.summaryLabel}>TARIFAS DE ENTREGA</Text>
+        <Text style={styles.summaryLabel}>TARIFAS GANADAS</Text>
         <Text style={styles.total}>{history.loaded ? moneyBob(total) : "--"}</Text>
         <View style={styles.summaryBottom}><CheckCircle2 size={17} color={C.lime} /><Text style={styles.summaryCaption}>{history.loaded ? `${filtered.length} entregas completadas` : "Consultando actividad"}</Text></View>
+        {history.loaded ? <Text style={styles.summaryOrderTotal}>Total de pedidos entregados: {moneyBob(ordersTotal)}</Text> : null}
       </View>
       <View style={styles.search}><Search size={18} color={C.muted} /><TextInput accessibilityLabel="Buscar pedido o restaurante" value={query} onChangeText={setQuery} placeholder="Pedido, restaurante o dirección" placeholderTextColor={C.muted} style={styles.input} />{query ? <Pressable accessibilityRole="button" accessibilityLabel="Limpiar búsqueda" onPress={() => setQuery("")} style={styles.clear}><X size={18} color={C.muted} /></Pressable> : null}</View>
       {history.error ? <StatusNotice tone="error" text={history.error} onRetry={() => { void history.refresh(); }} /> : null}
@@ -66,7 +68,7 @@ function HistoryRow({ order }: { order: MobileRiderOrder }) {
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   content: { padding: 18, paddingTop: 4, paddingBottom: 32, gap: 20, alignSelf: "center", width: "100%", maxWidth: 720 },
-  periods: { flexDirection: "row", padding: 4, borderRadius: 8, backgroundColor: "#E6EBE7", gap: 4 },
+  periods: { flexDirection: "row", padding: 4, borderRadius: 18, backgroundColor: "#E6EBE7", gap: 4 },
   period: { flex: 1, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 6 },
   selected: { backgroundColor: C.white },
   periodText: { fontFamily: F.semibold, fontSize: 13, color: C.muted },
@@ -75,14 +77,15 @@ const styles = StyleSheet.create({
   total: { color: C.white, fontFamily: F.bold, fontSize: 34 },
   summaryBottom: { flexDirection: "row", gap: 8, alignItems: "center" },
   summaryCaption: { color: C.lime, fontFamily: F.regular, fontSize: 13 },
-  search: { flexDirection: "row", alignItems: "center", paddingLeft: 14, gap: 10, backgroundColor: C.white, borderRadius: 8, borderWidth: 1, borderColor: C.line },
+  summaryOrderTotal: { color: "#CDD8D0", fontFamily: F.regular, fontSize: 12, lineHeight: 18 },
+  search: { flexDirection: "row", alignItems: "center", paddingLeft: 14, gap: 10, backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line },
   input: { flex: 1, minWidth: 0, minHeight: 50, fontFamily: F.regular, fontSize: 13, color: C.ink },
   clear: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
   group: { gap: 0 },
   date: { fontFamily: F.semibold, fontSize: 13, color: C.muted, paddingBottom: 10 },
   row: { borderBottomWidth: 1, borderColor: C.line },
   rowMain: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 18 },
-  check: { height: 38, width: 38, alignItems: "center", justifyContent: "center", backgroundColor: "#E0EEE6", borderRadius: 8 },
+  check: { height: 38, width: 38, alignItems: "center", justifyContent: "center", backgroundColor: "#E0EEE6", borderRadius: 18 },
   restaurant: { fontFamily: F.semibold, fontSize: 14, color: C.ink },
   meta: { fontFamily: F.regular, fontSize: 12, color: C.muted, lineHeight: 19 },
   fee: { fontFamily: F.semibold, fontSize: 13, color: C.ink, maxWidth: 95 },

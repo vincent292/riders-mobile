@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { AlertCircle, RefreshCw } from 'lucide-react-native';
-import { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ReactNode, useEffect, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { RiderAssets } from '@/constants/rider-assets';
 import { RiderColors, RiderFonts } from '@/constants/rider-theme';
@@ -11,21 +11,56 @@ export function RiderScreen({ children }: { children: ReactNode }) {
 }
 
 export function BrandedLoading({ message = 'Cargando tu ruta...' }: { message?: string }) {
+  const [progress] = useState(() => new Animated.Value(0));
+  const [pulse] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    const progressLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(progress, { toValue: 1, duration: 1450, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(progress, { toValue: 0, duration: 1450, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      ]),
+    );
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    progressLoop.start();
+    pulseLoop.start();
+    return () => { progressLoop.stop(); pulseLoop.stop(); };
+  }, [progress, pulse]);
+
+  const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [-76, 76] });
+  const logoScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.035] });
+  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.5] });
+
   return (
     <View style={styles.loadingScreen}>
+      <View style={styles.loadingGlowOne} />
+      <View style={styles.loadingGlowTwo} />
       <View style={styles.loadingBrand}>
-        <Image source={RiderAssets.brand.logoLight} style={styles.loadingLogo} contentFit="contain" />
-        <Text style={styles.loadingKicker}>Tu ruta, tus ganancias</Text>
+        <Animated.View style={[styles.loadingLogoShell, { transform: [{ scale: logoScale }] }]}>
+          <Animated.View style={[styles.loadingLogoGlow, { opacity: glowOpacity }]} />
+          <Image source={RiderAssets.brand.logoLight} style={styles.loadingLogo} contentFit="contain" />
+        </Animated.View>
+        <Text style={styles.loadingKicker}>TU RUTA · TUS GANANCIAS</Text>
       </View>
       <View style={styles.loadingScene}>
         <Image source={RiderAssets.reference.bannerDark} style={styles.loadingBanner} contentFit="cover" />
+        <View style={styles.loadingSceneOverlay} />
+        <View style={styles.loadingSceneBadge}>
+          <View style={styles.liveDot} />
+          <Text style={styles.loadingSceneBadgeText}>Conectando con tu zona</Text>
+        </View>
       </View>
       <View style={styles.loadingStatus}>
-        <View style={styles.loadingBar}>
-          <View style={styles.loadingFill} />
+        <View style={styles.loadingTrack}>
+          <Animated.View style={[styles.loadingRunner, { transform: [{ translateX }] }]} />
         </View>
-        <ActivityIndicator color={RiderColors.lime} size="small" />
         <Text style={styles.loadingText}>{message}</Text>
+        <Text style={styles.loadingHint}>Preparando pedidos, ubicación y disponibilidad</Text>
       </View>
     </View>
   );
@@ -133,7 +168,7 @@ export function PrimaryButton({
 }
 
 export function StatusNotice({ text, onRetry, tone = 'warning' }: { text: string; onRetry?: () => void; tone?: 'warning' | 'error' }) {
-  return <View accessibilityLiveRegion="polite" style={{ backgroundColor: tone === 'error' ? RiderColors.dangerSoft : RiderColors.warning, padding: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+  return <View accessibilityLiveRegion="polite" style={{ backgroundColor: tone === 'error' ? RiderColors.dangerSoft : RiderColors.warning, padding: 14, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
     <AlertCircle color={tone === 'error' ? RiderColors.red : RiderColors.orange} size={20} />
     <Text style={{ flex: 1, color: RiderColors.ink, fontFamily: RiderFonts.regular, fontSize: 13, lineHeight: 20 }}>{text}</Text>
     {onRetry ? <Pressable accessibilityRole="button" accessibilityLabel="Reintentar" onPress={onRetry} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><RefreshCw size={20} color={RiderColors.ink} /></Pressable> : null}
@@ -153,29 +188,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: RiderColors.blue950,
     flex: 1,
-    gap: 22,
+    gap: 28,
     justifyContent: 'center',
+    overflow: 'hidden',
     paddingHorizontal: 28,
   },
-  loadingBrand: {
-    alignItems: 'center',
-    gap: 4,
-  },
+  loadingGlowOne: { position: 'absolute', width: 290, height: 290, borderRadius: 145, backgroundColor: 'rgba(199,240,0,0.08)', top: -100, right: -120 },
+  loadingGlowTwo: { position: 'absolute', width: 260, height: 260, borderRadius: 130, backgroundColor: 'rgba(18,53,91,0.72)', bottom: -80, left: -110 },
+  loadingBrand: { alignItems: 'center', gap: 7 },
+  loadingLogoShell: { alignItems: 'center', justifyContent: 'center', height: 96, width: 250 },
+  loadingLogoGlow: { position: 'absolute', width: 178, height: 64, borderRadius: 32, backgroundColor: RiderColors.lime },
   loadingLogo: {
-    height: 76,
-    width: 220,
+    height: 82,
+    width: 232,
   },
   loadingKicker: {
     color: RiderColors.white,
     fontFamily: RiderFonts.extraBold,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '800',
-    opacity: 0.82,
+    letterSpacing: 1.5,
+    opacity: 0.72,
   },
   loadingScene: {
     aspectRatio: 2.37,
     borderColor: 'rgba(199,240,0,0.16)',
-    borderRadius: 8,
+    borderRadius: 20,
     borderWidth: 1,
     maxWidth: 360,
     overflow: 'hidden',
@@ -185,25 +223,18 @@ const styles = StyleSheet.create({
     height: '100%',
     width: '100%',
   },
+  loadingSceneOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(6,13,23,0.18)' },
+  loadingSceneBadge: { position: 'absolute', left: 14, bottom: 12, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(6,13,23,0.78)', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7 },
+  liveDot: { width: 7, height: 7, borderRadius: 7, backgroundColor: RiderColors.lime },
+  loadingSceneBadgeText: { color: RiderColors.white, fontFamily: RiderFonts.bold, fontSize: 10, fontWeight: '700' },
   loadingStatus: {
     alignItems: 'center',
     gap: 10,
     maxWidth: 260,
     width: '100%',
   },
-  loadingBar: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 999,
-    height: 5,
-    overflow: 'hidden',
-    width: '78%',
-  },
-  loadingFill: {
-    backgroundColor: RiderColors.lime,
-    borderRadius: 999,
-    height: '100%',
-    width: '58%',
-  },
+  loadingTrack: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, height: 5, overflow: 'hidden', width: 170 },
+  loadingRunner: { alignSelf: 'center', backgroundColor: RiderColors.lime, borderRadius: 999, height: '100%', shadowColor: RiderColors.lime, shadowOpacity: 0.8, shadowRadius: 8, width: 64 },
   loadingText: {
     color: RiderColors.white,
     fontFamily: RiderFonts.extraBold,
@@ -212,6 +243,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'center',
   },
+  loadingHint: { color: 'rgba(255,255,255,0.55)', fontFamily: RiderFonts.semibold, fontSize: 10, lineHeight: 15, textAlign: 'center' },
   header: {
     minHeight: 76,
     paddingHorizontal: 18,
@@ -231,7 +263,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: RiderColors.lime,
     borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
     height: 44,
     justifyContent: 'center',
@@ -272,7 +304,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -310,7 +342,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 16,
     backgroundColor: RiderColors.lime,
     alignItems: 'center',
     justifyContent: 'center',
@@ -338,7 +370,7 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     backgroundColor: 'transparent',
-    borderRadius: 8,
+    borderRadius: 16,
     gap: 10,
     overflow: 'hidden',
     padding: 18,

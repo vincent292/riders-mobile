@@ -16,6 +16,8 @@ export function RideOfferCard({ ride, now }: { ride: RideOffer; now: number }) {
   const expired = remaining === 0;
   const order = ride.order;
   const busy = Boolean(dashboard.pending) || Boolean(dashboard.error) || (dashboard.lastSync != null && now - dashboard.lastSync > 65000);
+  const previewItems = order.items.slice(0, 3);
+  const extraItems = Math.max(0, order.items.length - previewItems.length);
   return <View style={styles.offer}>
     <View style={styles.between}>
       <Text style={styles.eyebrow}>{ride.offerId ? "OFERTA PARA TI" : "ENTREGA DISPONIBLE"}</Text>
@@ -23,9 +25,14 @@ export function RideOfferCard({ ride, now }: { ride: RideOffer; now: number }) {
     </View>
     <View style={styles.between}>
       <View style={styles.flex}><Text style={styles.title}>{order.restaurant.name}</Text><Text style={styles.meta}>Pedido #{order.orderNumber}</Text></View>
-      <View><Text style={styles.fee}>{moneyBob(order.deliveryFee)}</Text><Text style={styles.meta}>Tarifa de entrega</Text></View>
+      <View style={styles.amountBox}><Text style={styles.fee}>{moneyBob(order.deliveryFee)}</Text><Text style={styles.meta}>Tarifa de entrega</Text><Text style={styles.orderTotal}>Pedido {moneyBob(order.total)}</Text></View>
     </View>
     <RouteSummary order={order} />
+    <View style={styles.itemsPreview}>
+      <View style={styles.between}><Text style={styles.sectionLabel}>PRODUCTOS</Text><Text style={styles.meta}>{order.items.reduce((sum, item) => sum + item.quantity, 0)} productos</Text></View>
+      {previewItems.length ? previewItems.map((item) => <View key={item.id} style={styles.itemLine}><Text style={styles.itemText} numberOfLines={1}>{item.quantity} × {item.productName}</Text><Text style={styles.itemPrice}>{moneyBob(item.subtotal)}</Text></View>) : <Text style={styles.meta}>Sin detalle de productos</Text>}
+      {extraItems ? <Text style={styles.more}>+{extraItems} producto{extraItems === 1 ? "" : "s"} más</Text> : null}
+    </View>
     <View style={styles.between}>
       <Text style={styles.meta}>{formatDistance(distanceKm(dashboard.location.position, orderDestination(order)))} en línea recta</Text>
       <Text style={styles.meta}>{order.items.reduce((sum, item) => sum + item.quantity, 0)} productos</Text>
@@ -77,7 +84,7 @@ export function ActiveDeliveryCard({ order }: { order: MobileRiderOrder }) {
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: itemsOpen }} onPress={() => setItemsOpen(!itemsOpen)} style={styles.disclosure}>
       <Package size={19} color={C.ink} /><Text style={[styles.button, styles.flex]}>Detalle del pedido</Text><Text style={styles.meta}>{itemsOpen ? "Ocultar" : `${order.items.length} ítems`}</Text>
     </Pressable>
-    {itemsOpen ? <View style={styles.items}>{order.items.map((item) => <View key={item.id} style={styles.item}><Text style={styles.body}>{item.quantity} × {item.productName}</Text>{item.notes ? <Text style={styles.meta}>{item.notes}</Text> : null}</View>)}</View> : null}
+    {itemsOpen ? <View style={styles.items}>{order.items.map((item) => <View key={item.id} style={styles.item}><View style={styles.itemLine}><Text style={styles.body}>{item.quantity} × {item.productName}</Text><Text style={styles.itemPrice}>{moneyBob(item.subtotal)}</Text></View>{item.notes ? <Text style={styles.meta}>{item.notes}</Text> : null}</View>)}</View> : null}
     <View style={styles.between}><Text style={styles.meta}>Restaurante · {order.restaurant.name}</Text><ContactButton label="Contactar al restaurante" phone={order.restaurant.whatsapp} whatsapp /></View>
   </View>;
 }
@@ -123,12 +130,14 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   inline: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
-  offer: { backgroundColor: C.card, borderColor: C.line, borderWidth: 1, borderRadius: 8, padding: 16, gap: 16 },
+  offer: { backgroundColor: C.card, borderColor: C.line, borderWidth: 1, borderRadius: 18, padding: 16, gap: 16 },
   active: { gap: 18 },
+  amountBox: { alignItems: "flex-end", gap: 2 },
   eyebrow: { fontFamily: F.bold, fontSize: 11, color: C.teal },
   title: { fontFamily: F.semibold, fontSize: 17, color: C.ink },
   heading: { fontFamily: F.bold, fontSize: 22, color: C.ink },
   fee: { fontFamily: F.bold, fontSize: 20, color: C.ink },
+  orderTotal: { fontFamily: F.semibold, fontSize: 11, color: C.teal },
   meta: { fontFamily: F.regular, fontSize: 12, lineHeight: 18, color: C.muted, flexShrink: 1 },
   sectionLabel: { fontFamily: F.semibold, fontSize: 11, color: C.muted, marginBottom: 4 },
   body: { fontFamily: F.regular, fontSize: 14, lineHeight: 22, color: C.ink },
@@ -143,13 +152,18 @@ const styles = StyleSheet.create({
   step: { flex: 1, gap: 6 },
   stepBar: { height: 4, backgroundColor: C.line, borderRadius: 2 },
   section: { borderTopWidth: 1, borderColor: C.line, paddingTop: 18, gap: 8 },
-  contact: { width: 48, height: 48, backgroundColor: "#E5F1ED", borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  contact: { width: 48, height: 48, backgroundColor: "#E5F1ED", borderRadius: 18, alignItems: "center", justifyContent: "center" },
   note: { fontFamily: F.regular, fontSize: 14, lineHeight: 22, color: C.orange },
   payment: { backgroundColor: "#EBF0DC", flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center", paddingVertical: 18, paddingHorizontal: 18, marginHorizontal: -18 },
   disclosure: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 48 },
+  itemsPreview: { backgroundColor: "#F4F7F5", borderRadius: 18, gap: 8, padding: 12 },
+  itemLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  itemText: { flex: 1, fontFamily: F.regular, fontSize: 13, color: C.ink, lineHeight: 20 },
+  itemPrice: { fontFamily: F.semibold, fontSize: 12, color: C.ink },
+  more: { fontFamily: F.semibold, fontSize: 12, color: C.teal },
   items: { gap: 12 }, item: { borderBottomWidth: 1, borderColor: C.line, paddingBottom: 10 },
   scrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modal: { backgroundColor: C.card, borderRadius: 8, width: "100%", maxWidth: 440, maxHeight: "90%" },
+  modal: { backgroundColor: C.card, borderRadius: 18, width: "100%", maxWidth: 440, maxHeight: "90%" },
   modalContent: { padding: 24, gap: 18 },
   error: { color: C.red, fontSize: 13, fontFamily: F.regular },
 });

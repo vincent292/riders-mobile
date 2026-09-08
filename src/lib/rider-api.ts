@@ -264,9 +264,11 @@ export function riderErrorMessage(error: unknown) {
   if (code === "order-not-available") return "La carrera ya no esta disponible.";
   if (code === "order-already-assigned") return "La carrera ya fue asignada a otro rider.";
   if (code === "order-already-delivered") return "El pedido ya fue entregado.";
+  if (code === "order-claim-failed") return "No pudimos tomar la carrera. Intenta otra vez.";
   if (code === "order-already-offered") return "Esta carrera esta ofrecida a otro rider.";
   if (code === "rider-dispatch-not-found") return "No encontramos esta carrera activa en tu cuenta.";
   if (code === "rider-offer-not-found") return "La oferta ya vencio o fue tomada.";
+  if (code === "rider-order-reject-failed") return "No pudimos rechazar la carrera. Intenta otra vez.";
   if (code === "rider-offers-failed") return "No pudimos leer tus ofertas nuevas.";
   if (code === "invalid-rider-location") return "No pudimos leer una ubicacion valida.";
   if (code === "rider-location-failed") return "No pudimos enviar tu ubicacion al cliente.";
@@ -391,6 +393,14 @@ export async function acceptRiderOffer(accessToken: string, offerId: string) {
 
 export async function rejectRiderOffer(accessToken: string, offerId: string, reason = "rider-rejected") {
   return riderApi<{ next: unknown; orderId: string }>(`/api/mobile/riders/offers/${encodeURIComponent(offerId)}/reject`, {
+    body: JSON.stringify({ reason }),
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    method: "POST",
+  });
+}
+
+export async function rejectRiderOrder(accessToken: string, orderId: string, reason = "rider-rejected-direct-order") {
+  return riderApi<{ orderId: string }>(`/api/mobile/riders/orders/${encodeURIComponent(orderId)}/reject`, {
     body: JSON.stringify({ reason }),
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     method: "POST",

@@ -36,6 +36,20 @@
           }
         }
       ],
+      [
+        "expo-location",
+        {
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Permite que Yopido Riders comparta tu ubicación durante una entrega activa, incluso si la app está en segundo plano.",
+          "locationWhenInUsePermission": "Permite que Yopido Riders use tu ubicación para las entregas activas."
+        }
+      ],
+      [
+        "react-native-maps",
+        {}
+      ],
       "expo-sqlite",
       "expo-secure-store"
     ],

@@ -37,6 +37,11 @@ export default function AppTabs() {
           height: 64 + Math.max(insets.bottom, 8),
           paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 7,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -8 },
+          shadowOpacity: 0.2,
+          shadowRadius: 20,
+          elevation: 18,
         },
         tabBarLabelStyle: {
           fontFamily: RiderFonts.extraBold,
@@ -63,10 +68,10 @@ export default function AppTabs() {
 const styles = StyleSheet.create({
   tabIcon: {
     alignItems: 'center',
-    borderRadius: 8,
-    height: 30,
+    borderRadius: 14,
+    height: 34,
     justifyContent: 'center',
-    width: 42,
+    width: 48,
   },
   tabIconActive: {
     backgroundColor: RiderColors.lime,

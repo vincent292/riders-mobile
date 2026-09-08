@@ -5,7 +5,7 @@ import type { LocationObject } from "expo-location";
 import { useRiderAuth } from "./rider-auth";
 import { useAuthorized } from "@/hooks/use-authorized";
 import { useLiveRiderLocation } from "@/hooks/use-live-rider-location";
-import { acceptRiderOffer, acceptRiderOrder, fetchRiderDashboard, rejectRiderOffer, riderErrorMessage, updateRiderAvailability, updateRiderOrderStatus, type MobileRiderOrder, type RiderDashboardPayload } from "@/lib/rider-api";
+import { acceptRiderOffer, acceptRiderOrder, fetchRiderDashboard, rejectRiderOffer, rejectRiderOrder, riderErrorMessage, updateRiderAvailability, updateRiderOrderStatus, type MobileRiderOrder, type RiderDashboardPayload } from "@/lib/rider-api";
 import { isActiveDelivery, offerSeconds } from "@/lib/rider-domain";
 import { locationMessage } from "@/lib/rider-location";
 import { notifyRiderOrdersChanged, subscribeToRiderOrderChanges } from "@/lib/rider-events";
@@ -118,6 +118,7 @@ function useDashboardState() {
 
   const reject = useCallback((ride: RideOffer) => mutate(ride.key, async () => {
     if (ride.offerId) await run((token) => rejectRiderOffer(token, ride.offerId!));
+    else await run((token) => rejectRiderOrder(token, ride.order.id));
     setHidden((ids) => [...ids, ride.key]);
   }), [mutate, run]);
 

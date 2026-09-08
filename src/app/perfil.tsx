@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Constants from "expo-constants";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -14,7 +14,9 @@ import { RiderColors as C, RiderFonts as F } from "@/constants/rider-theme";
 import { useRiderAuth } from "@/context/rider-auth";
 import { useRiderDashboard } from "@/context/rider-dashboard";
 import { useClock } from "@/hooks/use-clock";
+import { useRiderHistory } from "@/hooks/use-rider-history";
 import { shortDate } from "@/lib/geo";
+import { isDelivered } from "@/lib/rider-domain";
 import { riderErrorMessage } from "@/lib/rider-api";
 
 export default function ProfileScreen() { return <AuthGate><ProfileContent /></AuthGate>; }
@@ -22,6 +24,7 @@ export default function ProfileScreen() { return <AuthGate><ProfileContent /></A
 function ProfileContent() {
   const { session, refreshSession, signOut } = useRiderAuth();
   const dashboard = useRiderDashboard();
+  const history = useRiderHistory();
   const notifications = useRiderNotifications();
   const router = useRouter();
   const now = useClock(30000);
@@ -29,6 +32,14 @@ function ProfileContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const rider = session?.activeRiders[0] ?? session?.riders[0];
+  const deliverySummary = useMemo(() => {
+    const completed = history.orders.filter(isDelivered);
+    return {
+      completed: completed.length,
+      deliveryFees: completed.reduce((sum, order) => sum + order.deliveryFee, 0),
+      orderTotal: completed.reduce((sum, order) => sum + order.total, 0),
+    };
+  }, [history.orders]);
   async function refresh() {
     setRefreshing(true); setError("");
     try { await refreshSession(); } catch (err) { setError(riderErrorMessage(err)); }
@@ -50,6 +61,11 @@ function ProfileContent() {
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void refresh(); }} tintColor={C.teal} />}>
       <View style={styles.identity}><View style={styles.avatar}><Image source={RiderAssets.illustrations.riderStanding} style={styles.avatarImage} contentFit="contain" /></View><View style={styles.flex}><Text style={styles.name}>{rider?.fullName || "Rider"}</Text><Text style={styles.meta}>{rider?.plateNumber ? `Placa ${rider.plateNumber}` : "Placa sin registrar"}</Text><View style={styles.verified}><ShieldCheck size={15} color={C.teal} /><Text style={styles.verifiedText}>{session?.activeRiders.length ? "Afiliación activa" : "Afiliación pendiente"}</Text></View></View></View>
       {error ? <StatusNotice tone="error" text={error} onRetry={() => { void refresh(); }} /> : null}
+      <Pressable accessibilityRole="button" accessibilityLabel="Ver resumen de entregas" onPress={() => router.push("/historial")} style={({ pressed }) => [styles.deliverySummary, pressed && { opacity: 0.72 }]}>
+        <View><Text style={styles.summaryEyebrow}>MIS ENTREGAS</Text><Text style={styles.summaryCount}>{history.loaded ? `${deliverySummary.completed} completadas` : "Actualizando actividad"}</Text></View>
+        <View style={styles.summaryAmount}><Text style={styles.summaryFee}>{history.loaded ? `Bs ${deliverySummary.deliveryFees.toFixed(2)}` : "--"}</Text><Text style={styles.summaryLabel}>Tarifas acumuladas</Text></View>
+        {history.loaded ? <Text style={styles.summaryOrderTotal}>Pedidos: Bs {deliverySummary.orderTotal.toFixed(2)}</Text> : null}
+      </Pressable>
       <Text style={styles.sectionTitle}>Mis restaurantes</Text>
       {session?.riders.length ? session.riders.map((membership) => {
         const remaining = Math.ceil((Date.parse(membership.membershipValidUntil) - now) / 86400000);
@@ -92,7 +108,14 @@ const styles = StyleSheet.create({
   verified: { flexDirection: "row", gap: 6, alignItems: "center", marginTop: 7 },
   verifiedText: { fontFamily: F.semibold, fontSize: 11, color: C.teal },
   sectionTitle: { fontFamily: F.semibold, fontSize: 16, color: C.ink, marginTop: 6 },
-  membership: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: 16, gap: 8 },
+  membership: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 18, padding: 16, gap: 8 },
+  deliverySummary: { backgroundColor: C.blue950, borderRadius: 18, gap: 6, padding: 18 },
+  summaryEyebrow: { color: "#CDD8D0", fontFamily: F.semibold, fontSize: 11 },
+  summaryCount: { color: C.white, fontFamily: F.bold, fontSize: 19, marginTop: 2 },
+  summaryAmount: { alignItems: "baseline", flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  summaryFee: { color: C.lime, fontFamily: F.bold, fontSize: 24 },
+  summaryLabel: { color: "#CDD8D0", fontFamily: F.regular, fontSize: 12 },
+  summaryOrderTotal: { color: "#CDD8D0", fontFamily: F.regular, fontSize: 12, marginTop: 2 },
   restaurantTop: { flexDirection: "row", gap: 10, alignItems: "center" },
   restaurantName: { fontFamily: F.semibold, fontSize: 15, color: C.ink },
   memberBottom: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between" },
