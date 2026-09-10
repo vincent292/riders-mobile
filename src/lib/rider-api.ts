@@ -78,6 +78,8 @@ export type MobileRiderOrder = {
     status: "active" | "arrived" | "delivered" | "cancelled" | "expired";
     deliveryPhone: string;
     deliveryName: string;
+    pickupCodeVerifiedAt: string | null;
+    deliveryCodeVerifiedAt: string | null;
     openedAt: string | null;
     arrivedAt: string | null;
     deliveredAt: string | null;
@@ -267,6 +269,10 @@ export function riderErrorMessage(error: unknown) {
   if (code === "order-claim-failed") return "No pudimos tomar la carrera. Intenta otra vez.";
   if (code === "order-already-offered") return "Esta carrera esta ofrecida a otro rider.";
   if (code === "rider-dispatch-not-found") return "No encontramos esta carrera activa en tu cuenta.";
+  if (code === "invalid-confirmation-code") return "Codigo incorrecto. Verifica los 4 numeros.";
+  if (code === "confirmation-code-locked") return "Demasiados intentos. Contacta al restaurante.";
+  if (code === "pickup-code-required") return "Primero valida el codigo de recogida en el local.";
+  if (code === "invalid-rider-status") return "Ingresa el codigo de 4 numeros.";
   if (code === "rider-offer-not-found") return "La oferta ya vencio o fue tomada.";
   if (code === "rider-order-reject-failed") return "No pudimos rechazar la carrera. Intenta otra vez.";
   if (code === "rider-offers-failed") return "No pudimos leer tus ofertas nuevas.";
@@ -407,11 +413,11 @@ export async function rejectRiderOrder(accessToken: string, orderId: string, rea
   });
 }
 
-export async function updateRiderOrderStatus(accessToken: string, orderId: string, status: "arrived" | "delivered") {
+export async function updateRiderOrderStatus(accessToken: string, orderId: string, status: "arrived" | "delivered", confirmationCode: string) {
   return riderApi<{ order: MobileRiderOrder; status: "arrived" | "delivered" }>(
     `/api/mobile/riders/orders/${encodeURIComponent(orderId)}/status`,
     {
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ confirmationCode, status }),
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       method: "POST",
     },

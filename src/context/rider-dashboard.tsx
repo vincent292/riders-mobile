@@ -122,8 +122,8 @@ function useDashboardState() {
     setHidden((ids) => [...ids, ride.key]);
   }), [mutate, run]);
 
-  const updateStatus = useCallback((order: MobileRiderOrder, status: "arrived" | "delivered") => mutate("status", async () => {
-    const result = await run((token) => updateRiderOrderStatus(token, order.id, status));
+  const updateStatus = useCallback((order: MobileRiderOrder, status: "arrived" | "delivered", confirmationCode: string) => mutate("status", async () => {
+    const result = await run((token) => updateRiderOrderStatus(token, order.id, status, confirmationCode));
     setData((current) => ({ ...current, mine: current.mine.map((item) => item.id === result.order.id ? result.order : item) }));
   }), [mutate, run]);
 

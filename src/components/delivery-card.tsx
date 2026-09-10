@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Check, CheckCircle2, Clock3, MapPin, MessageCircle, Navigation, Package, Phone, Store, X } from "lucide-react-native";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Check, CheckCircle2, Clock3, KeyRound, MapPin, MessageCircle, Navigation, Package, Phone, Store, X } from "lucide-react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { LiveRiderMap } from "./live-rider-map";
 import { PrimaryButton } from "./rider-ui";
 import { RiderColors as C, RiderFonts as F } from "@/constants/rider-theme";
@@ -49,7 +49,7 @@ export function RideOfferCard({ ride, now }: { ride: RideOffer; now: number }) {
 export function ActiveDeliveryCard({ order }: { order: MobileRiderOrder }) {
   const dashboard = useRiderDashboard();
   const [itemsOpen, setItemsOpen] = useState(false);
-  const arrived = order.dispatch?.status === "arrived";
+  const arrived = order.dispatch?.status === "arrived" || Boolean(order.dispatch?.pickupCodeVerifiedAt);
   const cash = cashToCollect(order);
   return <View style={styles.active}>
     <View style={styles.mapDestination}>
@@ -67,11 +67,11 @@ export function ActiveDeliveryCard({ order }: { order: MobileRiderOrder }) {
       <LiveRiderMap currentLocation={dashboard.location.position} destination={orderDestination(order)} />
     </View>
     <View style={styles.between}>
-      <View style={styles.flex}><Text style={styles.eyebrow}>PEDIDO #{order.orderNumber}</Text><Text style={styles.heading}>{arrived ? "Completa la entrega" : "Tu entrega en curso"}</Text></View>
-      <View style={styles.status}><Package size={18} color={C.teal} /><Text style={styles.statusText}>{arrived ? "En destino" : "En curso"}</Text></View>
+      <View style={styles.flex}><Text style={styles.eyebrow}>PEDIDO #{order.orderNumber}</Text><Text style={styles.heading}>{arrived ? "Completa la entrega" : "Recoge el pedido"}</Text></View>
+      <View style={styles.status}><Package size={18} color={C.teal} /><Text style={styles.statusText}>{arrived ? "Recogida" : "En curso"}</Text></View>
     </View>
     <View style={styles.progress}>
-      {["Aceptada", "En destino", "Entregada"].map((label, i) => <View key={label} style={styles.step}>
+      {["Aceptada", "Recogida", "Entregada"].map((label, i) => <View key={label} style={styles.step}>
         <View style={[styles.stepBar, i <= (arrived ? 1 : 0) && { backgroundColor: C.teal }]} />
         <Text style={styles.meta}>{label}</Text>
       </View>)}
@@ -102,25 +102,55 @@ export function ActiveDeliveryCard({ order }: { order: MobileRiderOrder }) {
 
 export function ActiveDeliveryActions({ order }: { order: MobileRiderOrder }) {
   const dashboard = useRiderDashboard();
-  const [confirm, setConfirm] = useState(false);
-  const arrived = order.dispatch?.status === "arrived";
+  const [confirm, setConfirm] = useState<"arrived" | "delivered" | null>(null);
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const arrived = order.dispatch?.status === "arrived" || Boolean(order.dispatch?.pickupCodeVerifiedAt);
   const cash = cashToCollect(order);
   const pending = dashboard.pending === "status";
   const blocked = Boolean(dashboard.pending) || Boolean(dashboard.error);
+  const sanitizedCode = confirmationCode.replace(/\D/g, "").slice(0, 4);
+  const modalTitle = confirm === "arrived" ? "Codigo del local" : "Codigo del cliente";
+  const modalBody =
+    confirm === "arrived"
+      ? `Pide al local el codigo de recogida del pedido #${order.orderNumber}.`
+      : cash > 0
+        ? `Pide al cliente su codigo y confirma que cobraste ${moneyBob(cash)}.`
+        : "Pide al cliente su codigo para cerrar la entrega.";
+  const openConfirm = (nextStatus: "arrived" | "delivered") => {
+    setConfirmationCode("");
+    setConfirm(nextStatus);
+  };
+  const submitConfirmation = () => {
+    if (!confirm || sanitizedCode.length !== 4) return;
+    void dashboard.updateStatus(order, confirm, sanitizedCode).then((ok) => {
+      if (ok) setConfirm(null);
+    });
+  };
   return <View style={styles.footer}>
     <PrimaryButton accessibilityLabel="Navegar al cliente" tone="dark" onPress={() => { void openDeliveryMaps(order, dashboard.location.position); }}><Navigation size={21} color={C.white} /></PrimaryButton>
-    <PrimaryButton style={styles.flex} loading={pending} disabled={blocked} onPress={() => { if (arrived) setConfirm(true); else void dashboard.updateStatus(order, "arrived"); }}>
-      <View style={styles.inline}><CheckCircle2 size={20} color={C.ink} /><Text style={styles.button}>{arrived ? "Confirmar entrega" : "Llegué al cliente"}</Text></View>
+    <PrimaryButton style={styles.flex} loading={pending} disabled={blocked} onPress={() => openConfirm(arrived ? "delivered" : "arrived")}>
+      <View style={styles.inline}><CheckCircle2 size={20} color={C.ink} /><Text style={styles.button}>{arrived ? "Confirmar entrega" : "Validar recogida"}</Text></View>
     </PrimaryButton>
-    <Modal visible={confirm} transparent animationType="fade" onRequestClose={() => { if (!pending) setConfirm(false); }}>
+    <Modal visible={Boolean(confirm)} transparent animationType="fade" onRequestClose={() => { if (!pending) setConfirm(null); }}>
       <View style={styles.scrim}><View accessibilityViewIsModal style={styles.modal}><ScrollView contentContainerStyle={styles.modalContent}>
-        <CheckCircle2 size={36} color={C.teal} />
-        <Text style={styles.heading}>¿Pedido entregado?</Text>
-        <Text style={styles.body}>Pedido #{order.orderNumber} para {order.customerName}.</Text>
-        <Text style={styles.body}>{cash > 0 ? `Confirma que entregaste los productos y cobraste ${moneyBob(cash)} en efectivo.` : "Confirma que el cliente recibió todos los productos."}</Text>
+        <KeyRound size={36} color={C.teal} />
+        <Text style={styles.heading}>{modalTitle}</Text>
+        <Text style={styles.body}>{modalBody}</Text>
+        <TextInput
+          accessibilityLabel={modalTitle}
+          autoComplete="one-time-code"
+          keyboardType="number-pad"
+          maxLength={4}
+          onChangeText={(value) => setConfirmationCode(value.replace(/\D/g, "").slice(0, 4))}
+          placeholder="0000"
+          placeholderTextColor={C.muted}
+          style={styles.codeInput}
+          textAlign="center"
+          value={sanitizedCode}
+        />
         {dashboard.actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{dashboard.actionError}</Text> : null}
-        <PrimaryButton disabled={blocked} loading={pending} onPress={() => { void dashboard.updateStatus(order, "delivered").then((ok) => { if (ok) setConfirm(false); }); }}><Text style={styles.button}>Sí, pedido entregado</Text></PrimaryButton>
-        <PrimaryButton disabled={pending} tone="dark" onPress={() => setConfirm(false)}><Text style={[styles.button, { color: C.white }]}>Volver a la entrega</Text></PrimaryButton>
+        <PrimaryButton disabled={blocked || sanitizedCode.length !== 4} loading={pending} onPress={submitConfirmation}><Text style={styles.button}>{confirm === "arrived" ? "Confirmar recogida" : "Confirmar entrega"}</Text></PrimaryButton>
+        <PrimaryButton disabled={pending} tone="dark" onPress={() => setConfirm(null)}><Text style={[styles.button, { color: C.white }]}>Volver a la entrega</Text></PrimaryButton>
       </ScrollView></View></View>
     </Modal>
   </View>;
@@ -178,5 +208,6 @@ const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.card, borderRadius: 18, width: "100%", maxWidth: 440, maxHeight: "90%" },
   modalContent: { padding: 24, gap: 18 },
+  codeInput: { minHeight: 58, borderWidth: 1, borderColor: C.line, borderRadius: 18, backgroundColor: C.white, color: C.ink, fontFamily: F.bold, fontSize: 28, letterSpacing: 10, paddingHorizontal: 16 },
   error: { color: C.red, fontSize: 13, fontFamily: F.regular },
 });

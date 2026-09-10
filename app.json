@@ -28,11 +28,11 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0B1626",
-          "image": "./assets/expo.icon/Assets/splash/splash-dark.png",
-          "imageWidth": 180,
+          "image": "./assets/expo.icon/Assets/brand/logo-riders-dark.png",
+          "imageWidth": 260,
           "dark": {
             "backgroundColor": "#0B1626",
-            "image": "./assets/expo.icon/Assets/splash/splash-dark.png"
+            "image": "./assets/expo.icon/Assets/brand/logo-riders-dark.png"
           }
         }
       ],
