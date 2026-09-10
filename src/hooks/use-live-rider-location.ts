@@ -35,33 +35,46 @@ export function useLiveRiderLocation(orderId: string, canReconcile: boolean) {
     let subscription: Location.LocationSubscription | undefined;
     let sending = false;
     let lastSentAt = 0;
+    let receivedPosition = false;
+    function receivePosition(next: Location.LocationObject) {
+      if (cancelled || next.timestamp < lastPositionAt.current) return;
+      receivedPosition = true;
+      lastPositionAt.current = next.timestamp;
+      const coords = { latitude: next.coords.latitude, longitude: next.coords.longitude };
+      setPosition(coords);
+      const lowAccuracy = (next.coords.accuracy ?? 0) > 100;
+      setStatus(lowAccuracy ? "GPS con baja precisión" : "GPS disponible");
+      if (!orderId || sending || Date.now() - lastSentAt < 15000 || lowAccuracy) return;
+      sending = true;
+      lastSentAt = Date.now();
+      void runAuthorized((token) => updateRiderLocation(token, orderId, { ...coords, accuracyMeters: next.coords.accuracy, heading: next.coords.heading, speedMetersPerSecond: next.coords.speed }))
+        .then(() => { if (!cancelled) setStatus("Ubicación compartida"); })
+        .catch(() => { if (!cancelled) setStatus("Ubicación sin sincronizar"); })
+        .finally(() => { sending = false; });
+    }
+    async function configureBackground() {
+      if (orderId) {
+        const enabled = await startBackgroundDelivery(orderId, userId!).catch(() => false);
+        if (cancelled) return;
+        if (!enabled) await stopBackgroundDelivery();
+        if (!cancelled) setBackground(enabled);
+      } else if (!cancelled) setBackground(false);
+    }
     async function start() {
       if (!orderId && canReconcile) await stopBackgroundDelivery();
       const permission = await Location.getForegroundPermissionsAsync();
       if (cancelled) return;
       if (!permission.granted) { setStatus("Permiso de ubicación pendiente"); setBackground(false); await stopBackgroundDelivery(); return; }
       if (!(await Location.hasServicesEnabledAsync())) { setStatus("Activa el GPS del teléfono"); return; }
-      if (orderId) {
-        const enabled = await startBackgroundDelivery(orderId, userId!).catch(() => false);
-        if (cancelled) return;
-        if (!enabled) await stopBackgroundDelivery();
-        setBackground(enabled);
-      } else setBackground(false);
-      const watcher = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 25, timeInterval: 15000 }, (next) => {
-        if (cancelled) return;
-        lastPositionAt.current = next.timestamp;
-        const coords = { latitude: next.coords.latitude, longitude: next.coords.longitude };
-        setPosition(coords);
-        const lowAccuracy = (next.coords.accuracy ?? 0) > 100;
-        setStatus(lowAccuracy ? "GPS con baja precisión" : "GPS disponible");
-        if (!orderId || sending || Date.now() - lastSentAt < 15000 || lowAccuracy) return;
-        sending = true;
-        lastSentAt = Date.now();
-        void runAuthorized((token) => updateRiderLocation(token, orderId, { ...coords, accuracyMeters: next.coords.accuracy, heading: next.coords.heading, speedMetersPerSecond: next.coords.speed }))
-          .then(() => { if (!cancelled) setStatus("Ubicación compartida"); })
-          .catch(() => { if (!cancelled) setStatus("Ubicación sin sincronizar"); })
-          .finally(() => { sending = false; });
+      if (cancelled) return;
+      setStatus("Obteniendo ubicación…");
+      // Seed and publish a fresh position on acceptance, even without movement.
+      // Background permissions/service startup must not hold up the visible map.
+      void configureBackground().catch(() => { if (!cancelled) setBackground(false); });
+      void getRiderPosition().then(receivePosition).catch((error) => {
+        if (!cancelled && !receivedPosition) setStatus(locationMessage(error));
       });
+      const watcher = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 25, timeInterval: 15000 }, receivePosition);
       if (cancelled) watcher.remove(); else subscription = watcher;
     }
     void start().catch((error) => { if (!cancelled) setStatus(locationMessage(error)); });

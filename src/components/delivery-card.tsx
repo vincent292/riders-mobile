@@ -52,6 +52,17 @@ export function ActiveDeliveryCard({ order }: { order: MobileRiderOrder }) {
   const arrived = order.dispatch?.status === "arrived";
   const cash = cashToCollect(order);
   return <View style={styles.active}>
+    <View style={styles.mapDestination}>
+      <MapPin size={21} color={C.teal} />
+      <View style={styles.flex}>
+        <Text style={styles.sectionLabel}>LLEVAR A</Text>
+        <Text style={styles.body}>{order.customerAddress || "Dirección por confirmar"}</Text>
+        {!orderDestination(order) ? <Text style={styles.meta}>Sin punto exacto guardado. Confirma la ubicación con el cliente.</Text> : null}
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Abrir ruta al cliente" onPress={() => { void openDeliveryMaps(order, dashboard.location.position); }} style={styles.routeButton}>
+        <Navigation size={18} color={C.teal} /><Text style={styles.statusText}>Ver ruta</Text>
+      </Pressable>
+    </View>
     <View style={styles.map}>
       <LiveRiderMap currentLocation={dashboard.location.position} destination={orderDestination(order)} />
     </View>
@@ -145,6 +156,8 @@ const styles = StyleSheet.create({
   route: { gap: 18, paddingVertical: 8 },
   routeRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
   map: { height: 230, marginHorizontal: -18, backgroundColor: C.line },
+  mapDestination: { flexDirection: "row", alignItems: "center", gap: 10 },
+  routeButton: { minHeight: 48, paddingHorizontal: 8, alignItems: "center", justifyContent: "center", gap: 4 },
   footer: { flexDirection: "row", gap: 12, padding: 12, paddingHorizontal: 18, borderTopWidth: 1, borderColor: C.line, backgroundColor: C.white, width: "100%", maxWidth: 720, alignSelf: "center" },
   status: { flexDirection: "row", gap: 6, alignItems: "center" },
   statusText: { color: C.teal, fontFamily: F.semibold, fontSize: 12 },

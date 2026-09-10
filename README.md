@@ -42,6 +42,19 @@ Variables de integración:
 El mapa nativo encuadra rider y destino. La línea punteada indica referencia
 directa, no una ruta vial calculada. Google Maps ofrece la navegación vial.
 El cliente móvil no dispone de coordenadas de recogida en el contrato actual.
+El destino y el botón «Ver ruta» aparecen antes del mapa, incluso sin GPS.
+La vista web muestra el destino en un mapa incrustado de OpenStreetMap.
+Al aceptar una entrega se solicita y publica una posición inicial sin esperar
+a que el rider se desplace; el servicio en segundo plano no bloquea esa lectura.
+
+Si Android muestra el logotipo de Google pero no las calles, comprobar la conexión
+y la autorización de Maps: habilitar Maps SDK for Android y la facturación en el
+proyecto de la clave, y autorizar `shop.yopido.riders` junto con el SHA-1 del
+certificado que firma esa instalación (debug, EAS o Google Play). Una clave
+presente en el manifiesto no demuestra que Google la acepte. Revisar los errores
+de Google Maps en `adb logcat` con el teléfono conectado. Los cambios de clave
+requieren regenerar Android con `npx expo prebuild --platform android` y compilar
+e instalar de nuevo; recargar la URL de Metro no cambia la configuración nativa.
 
 En Android instalado, el rider puede activar ubicación al salir de la app desde
 una entrega. Antes del permiso se explica su uso. Expo TaskManager ejecuta un
@@ -55,9 +68,13 @@ automáticamente aceptaciones o cambios de estado porque pueden haber vencido o
 haberse completado en otro dispositivo. Las lecturas reintentan una vez; las
 mutaciones se reconcilian antes de ofrecer un nuevo intento.
 
-El seguimiento en segundo plano y las notificaciones push requieren una nueva
-compilación Android con Firebase, permisos y módulos nativos. Expo Go y la vista
-web no verifican estas funciones. Android puede detener el servicio si se fuerza
+El seguimiento en segundo plano requiere una compilación Android con permisos
+y módulos nativos de ubicación; no depende de Firebase. Las notificaciones usan
+`expo-notifications` y un Expo Push Token enviado al servidor. En Android,
+Expo Push depende de Firebase FCM: se necesita `google-services.json` para
+`shop.yopido.riders` y una cuenta de servicio FCM V1 configurada en EAS.
+La ausencia del SDK JavaScript de Firebase no significa que no se utilice FCM.
+Expo Go y la vista web no verifican estas funciones. Android puede detener el servicio si se fuerza
 el cierre de la app o por restricciones del fabricante.
 
 ## Verificación
