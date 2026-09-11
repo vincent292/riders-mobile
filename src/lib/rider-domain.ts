@@ -46,6 +46,22 @@ export function orderDestination(order: MobileRiderOrder) {
   return { latitude, longitude };
 }
 
+export function orderPickup(order: MobileRiderOrder) {
+  const latitude = order.restaurant.latitude;
+  const longitude = order.restaurant.longitude;
+  if (latitude == null || longitude == null || !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+    Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  return { latitude, longitude };
+}
+
+export function hasPickedUpOrder(order: MobileRiderOrder) {
+  return order.dispatch?.status === "arrived" || Boolean(order.dispatch?.pickupCodeVerifiedAt);
+}
+
+export function activeOrderDestination(order: MobileRiderOrder) {
+  return hasPickedUpOrder(order) ? orderDestination(order) : orderPickup(order);
+}
+
 export function cashToCollect(order: MobileRiderOrder) {
   return order.paymentMethod === "cash" && order.paymentStatus === "pending" ? order.total : 0;
 }

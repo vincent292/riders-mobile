@@ -5,9 +5,9 @@ import { LiveRiderMap } from "./live-rider-map";
 import { PrimaryButton } from "./rider-ui";
 import { RiderColors as C, RiderFonts as F } from "@/constants/rider-theme";
 import { type RideOffer, useRiderDashboard } from "@/context/rider-dashboard";
-import { cashToCollect, offerSeconds, orderDestination } from "@/lib/rider-domain";
+import { activeOrderDestination, cashToCollect, hasPickedUpOrder, offerSeconds, orderDestination, orderPickup } from "@/lib/rider-domain";
 import { distanceKm, formatDistance, moneyBob } from "@/lib/geo";
-import { contactPhone, openDeliveryMaps } from "@/lib/rider-links";
+import { contactPhone, openActiveOrderMaps } from "@/lib/rider-links";
 import type { MobileRiderOrder } from "@/lib/rider-api";
 
 export function RideOfferCard({ ride, now }: { ride: RideOffer; now: number }) {
@@ -34,7 +34,7 @@ export function RideOfferCard({ ride, now }: { ride: RideOffer; now: number }) {
       {extraItems ? <Text style={styles.more}>+{extraItems} producto{extraItems === 1 ? "" : "s"} más</Text> : null}
     </View>
     <View style={styles.between}>
-      <Text style={styles.meta}>{formatDistance(distanceKm(dashboard.location.position, orderDestination(order)))} en línea recta</Text>
+      <Text style={styles.meta}>{formatDistance(distanceKm(dashboard.location.position, orderPickup(order) ?? orderDestination(order)))} hasta la recogida</Text>
       <Text style={styles.meta}>{order.items.reduce((sum, item) => sum + item.quantity, 0)} productos</Text>
     </View>
     <View style={styles.inline}>
@@ -49,22 +49,29 @@ export function RideOfferCard({ ride, now }: { ride: RideOffer; now: number }) {
 export function ActiveDeliveryCard({ order }: { order: MobileRiderOrder }) {
   const dashboard = useRiderDashboard();
   const [itemsOpen, setItemsOpen] = useState(false);
-  const arrived = order.dispatch?.status === "arrived" || Boolean(order.dispatch?.pickupCodeVerifiedAt);
+  const arrived = hasPickedUpOrder(order);
+  const destination = activeOrderDestination(order);
+  const destinationLabel = arrived ? "LLEVAR A" : "RECOGER EN";
+  const destinationAddress = arrived
+    ? order.customerAddress || "Dirección por confirmar"
+    : order.restaurant.address || [order.restaurant.name, order.restaurant.city].filter(Boolean).join(", ");
+  const destinationDetail = arrived ? order.deliveryAddressDetail : order.restaurant.addressReference;
   const cash = cashToCollect(order);
   return <View style={styles.active}>
     <View style={styles.mapDestination}>
       <MapPin size={21} color={C.teal} />
       <View style={styles.flex}>
-        <Text style={styles.sectionLabel}>LLEVAR A</Text>
-        <Text style={styles.body}>{order.customerAddress || "Dirección por confirmar"}</Text>
-        {!orderDestination(order) ? <Text style={styles.meta}>Sin punto exacto guardado. Confirma la ubicación con el cliente.</Text> : null}
+        <Text style={styles.sectionLabel}>{destinationLabel}</Text>
+        <Text style={styles.body}>{destinationAddress || "Ubicación por confirmar"}</Text>
+        {destinationDetail ? <Text style={styles.meta}>{destinationDetail}</Text> : null}
+        {!destination ? <Text style={styles.meta}>{arrived ? "Sin punto exacto guardado. Confirma la ubicación con el cliente." : "El local debe guardar su punto exacto de recogida."}</Text> : null}
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Abrir ruta al cliente" onPress={() => { void openDeliveryMaps(order, dashboard.location.position); }} style={styles.routeButton}>
+      <Pressable accessibilityRole="button" accessibilityLabel={arrived ? "Abrir ruta al cliente" : "Abrir ruta al local"} onPress={() => { void openActiveOrderMaps(order, dashboard.location.position); }} style={styles.routeButton}>
         <Navigation size={18} color={C.teal} /><Text style={styles.statusText}>Ver ruta</Text>
       </Pressable>
     </View>
     <View style={styles.map}>
-      <LiveRiderMap currentLocation={dashboard.location.position} destination={orderDestination(order)} />
+      <LiveRiderMap currentLocation={dashboard.location.position} destination={destination} />
     </View>
     <View style={styles.between}>
       <View style={styles.flex}><Text style={styles.eyebrow}>PEDIDO #{order.orderNumber}</Text><Text style={styles.heading}>{arrived ? "Completa la entrega" : "Recoge el pedido"}</Text></View>
@@ -104,7 +111,7 @@ export function ActiveDeliveryActions({ order }: { order: MobileRiderOrder }) {
   const dashboard = useRiderDashboard();
   const [confirm, setConfirm] = useState<"arrived" | "delivered" | null>(null);
   const [confirmationCode, setConfirmationCode] = useState("");
-  const arrived = order.dispatch?.status === "arrived" || Boolean(order.dispatch?.pickupCodeVerifiedAt);
+  const arrived = hasPickedUpOrder(order);
   const cash = cashToCollect(order);
   const pending = dashboard.pending === "status";
   const blocked = Boolean(dashboard.pending) || Boolean(dashboard.error);
@@ -127,7 +134,7 @@ export function ActiveDeliveryActions({ order }: { order: MobileRiderOrder }) {
     });
   };
   return <View style={styles.footer}>
-    <PrimaryButton accessibilityLabel="Navegar al cliente" tone="dark" onPress={() => { void openDeliveryMaps(order, dashboard.location.position); }}><Navigation size={21} color={C.white} /></PrimaryButton>
+    <PrimaryButton accessibilityLabel={arrived ? "Navegar al cliente" : "Navegar al local"} tone="dark" onPress={() => { void openActiveOrderMaps(order, dashboard.location.position); }}><Navigation size={21} color={C.white} /></PrimaryButton>
     <PrimaryButton style={styles.flex} loading={pending} disabled={blocked} onPress={() => openConfirm(arrived ? "delivered" : "arrived")}>
       <View style={styles.inline}><CheckCircle2 size={20} color={C.ink} /><Text style={styles.button}>{arrived ? "Confirmar entrega" : "Validar recogida"}</Text></View>
     </PrimaryButton>
@@ -158,7 +165,7 @@ export function ActiveDeliveryActions({ order }: { order: MobileRiderOrder }) {
 
 function RouteSummary({ order }: { order: MobileRiderOrder }) {
   return <View style={styles.route}>
-    <View style={styles.routeRow}><Store size={19} color={C.orange} /><View style={styles.flex}><Text style={styles.sectionLabel}>RECOGIDA · #{order.orderNumber}</Text><Text style={styles.body}>{order.restaurant.name}</Text><Text style={styles.meta}>{order.restaurant.city}</Text></View></View>
+    <View style={styles.routeRow}><Store size={19} color={C.orange} /><View style={styles.flex}><Text style={styles.sectionLabel}>RECOGIDA · #{order.orderNumber}</Text><Text style={styles.body}>{order.restaurant.name}</Text><Text style={styles.meta}>{order.restaurant.address || order.restaurant.city}</Text>{order.restaurant.addressReference ? <Text style={styles.meta}>{order.restaurant.addressReference}</Text> : null}</View></View>
     <View style={styles.routeRow}><MapPin size={19} color={C.teal} /><View style={styles.flex}><Text style={styles.sectionLabel}>DESTINO</Text><Text style={styles.body}>{order.customerAddress || "Dirección por confirmar"}</Text>{order.deliveryAddressDetail ? <Text style={styles.meta}>{order.deliveryAddressDetail}</Text> : null}</View></View>
   </View>;
 }

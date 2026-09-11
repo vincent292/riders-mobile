@@ -45,7 +45,7 @@ export function RiderNotifications({ children }: { children: ReactNode }) {
       Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }) });
       if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("rider-dispatch", {
         name: "Nuevas entregas", importance: Notifications.AndroidImportance.MAX,
-        sound: "default", vibrationPattern: [0, 250, 250, 250],
+        vibrationPattern: [0, 250, 250, 250],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
       });
       if (cancelled) return;

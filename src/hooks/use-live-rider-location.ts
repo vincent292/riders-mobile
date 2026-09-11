@@ -44,11 +44,11 @@ export function useLiveRiderLocation(orderId: string, canReconcile: boolean) {
       setPosition(coords);
       const lowAccuracy = (next.coords.accuracy ?? 0) > 100;
       setStatus(lowAccuracy ? "GPS con baja precisión" : "GPS disponible");
-      if (!orderId || sending || Date.now() - lastSentAt < 15000 || lowAccuracy) return;
+      if (!orderId || sending || Date.now() - lastSentAt < 15000) return;
       sending = true;
       lastSentAt = Date.now();
       void runAuthorized((token) => updateRiderLocation(token, orderId, { ...coords, accuracyMeters: next.coords.accuracy, heading: next.coords.heading, speedMetersPerSecond: next.coords.speed }))
-        .then(() => { if (!cancelled) setStatus("Ubicación compartida"); })
+        .then(() => { if (!cancelled) setStatus(lowAccuracy ? "Ubicación compartida · precisión baja" : "Ubicación compartida"); })
         .catch(() => { if (!cancelled) setStatus("Ubicación sin sincronizar"); })
         .finally(() => { sending = false; });
     }
@@ -62,7 +62,10 @@ export function useLiveRiderLocation(orderId: string, canReconcile: boolean) {
     }
     async function start() {
       if (!orderId && canReconcile) await stopBackgroundDelivery();
-      const permission = await Location.getForegroundPermissionsAsync();
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted && orderId && permission.canAskAgain) {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
       if (cancelled) return;
       if (!permission.granted) { setStatus("Permiso de ubicación pendiente"); setBackground(false); await stopBackgroundDelivery(); return; }
       if (!(await Location.hasServicesEnabledAsync())) { setStatus("Activa el GPS del teléfono"); return; }

@@ -45,6 +45,11 @@ export type MobileRiderOrder = {
     name: string;
     slug: string;
     city: string;
+    address: string;
+    addressReference: string;
+    latitude: number | null;
+    longitude: number | null;
+    mapsUrl: string;
     logoUrl: string;
     whatsapp: string;
   };

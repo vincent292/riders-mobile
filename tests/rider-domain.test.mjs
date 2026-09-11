@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { boliviaDay, cashToCollect, inHistoryPeriod, isActiveDelivery, offerSeconds, orderDestination, validateRiderForm } from "../src/lib/rider-domain.ts";
+import { activeOrderDestination, boliviaDay, cashToCollect, inHistoryPeriod, isActiveDelivery, offerSeconds, orderDestination, orderPickup, validateRiderForm } from "../src/lib/rider-domain.ts";
 
 test("Bolivia's business day does not advance at UTC midnight", () => {
   assert.equal(boliviaDay("2026-09-08T03:59:59Z"), "2026-09-07");
@@ -35,6 +35,17 @@ test("remote cancellation and delivery supersede an old active dispatch", () => 
 test("map coordinates reject missing, nonfinite and out-of-range values", () => {
   assert.deepEqual(orderDestination({ deliveryLatitude: 0, deliveryLongitude: 0 }), { latitude: 0, longitude: 0 });
   for (const deliveryLatitude of [null, NaN, 91]) assert.equal(orderDestination({ deliveryLatitude, deliveryLongitude: -66 }), null);
+});
+test("active navigation changes from restaurant pickup to customer after collection", () => {
+  const order = {
+    deliveryLatitude: -17.38,
+    deliveryLongitude: -66.15,
+    dispatch: { status: "active", pickupCodeVerifiedAt: null },
+    restaurant: { latitude: -17.40, longitude: -66.16 },
+  };
+  assert.deepEqual(orderPickup(order), { latitude: -17.40, longitude: -66.16 });
+  assert.deepEqual(activeOrderDestination(order), { latitude: -17.40, longitude: -66.16 });
+  assert.deepEqual(activeOrderDestination({ ...order, dispatch: { status: "arrived", pickupCodeVerifiedAt: "2026-09-10T21:00:00Z" } }), { latitude: -17.38, longitude: -66.15 });
 });
 test("onboarding validates before sending credentials and follows registration limits", () => {
   const valid = { email: "rider@example.test", password: "password123", documentNumber: "1234567", plateNumber: "1234ABC" };
